@@ -1,4 +1,5 @@
 import * as ls from 'app/lib/ls';
+import { getEnsuredAccessToken } from 'app/lib/destinyAuth';
 
 const log = require('app/lib/log')('telemetry');
 
@@ -19,65 +20,9 @@ function getNameFromBungieProfile(bungieNetProfile) {
   return name;
 }
 
-let db;
-function getFirebaseDb() {
-  if (db) {
-    return Promise.resolve(db);
-  }
+export function getDebugProfile(path) {}
 
-  const importPromise = Promise.all([
-    import(/* webpackChunkName: "firebase" */ 'firebase/app'),
-    import(/* webpackChunkName: "firebase" */ 'firebase/database')
-  ]);
-
-  importPromise.catch(err => {
-    console.error('Error importing firebase', err);
-    console.error(err);
-  });
-
-  return importPromise.then(([firebase]) => {
-    firebase.initializeApp({
-      apiKey: 'AIzaSyDA_n6Ix4o6K2vW4zlFFmWk2XCzqPesDZo',
-      authDomain: 'destinysets.firebaseapp.com',
-      databaseURL: 'https://destinysets-new.firebaseio.com',
-      projectId: 'destinysets',
-      storageBucket: 'destinysets.appspot.com',
-      messagingSenderId: '621939283066'
-    });
-
-    db = firebase.database();
-
-    window.__db = db;
-
-    return db;
-  });
-}
-
-export function getDebugProfile(path) {
-  return getFirebaseDb()
-    .then(db => {
-      const ref = db.ref(path);
-      return ref.once('value');
-    })
-    .then(snapshot => snapshot.val())
-    .then(data => JSON.parse(data));
-}
-
-export function saveDebugInfo(debugData, pathPrefix = 'debug') {
-  log('Saving debug info', debugData);
-  setExtraUserContext({ debugId: debugData.debugId });
-
-  return getFirebaseDb()
-    .then(db => {
-      const key = `${pathPrefix}/${debugData.debugId}`;
-      console.log('telem with', { key, debugData });
-      return db.ref(key).set(debugData);
-    })
-    .catch(err => {
-      console.error('Unable to saveDebugInfo', err);
-      console.error(err);
-    });
-}
+export function saveDebugInfo(debugData, pathPrefix = 'debug') {}
 
 export function setUser(bungieNetProfile) {
   const { membershipId } = bungieNetProfile;
@@ -143,4 +88,22 @@ export function errorPrompt(ev) {
   }
 
   Raven.showReportDialog();
+}
+
+export function sendProfileStats() {
+  if (process.env.REACT_APP_PREVENT_STATS) {
+    return Promise.resolve();
+  }
+
+  return getEnsuredAccessToken()
+    .then(accessToken => {
+      return fetch(
+        `https://stats.destinysets.com/update-inventory?accessToken=${encodeURIComponent(
+          accessToken
+        )}`,
+        { method: 'POST' }
+      );
+    })
+    .then(r => r.json())
+    .then(d => log('Sent profile stats', d));
 }

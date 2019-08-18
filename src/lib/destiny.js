@@ -2,87 +2,57 @@ import { sortBy, has } from 'lodash';
 
 import { setUser } from 'app/lib/telemetry';
 import { getEnsuredAccessToken } from 'app/lib/destinyAuth';
-import { trackError, trackBreadcrumb, saveDebugInfo } from 'app/lib/telemetry';
+import { trackError, trackBreadcrumb } from 'app/lib/telemetry';
 import * as ls from 'app/lib/ls';
 
 const XUR_URL = 'https://api.destiny.plumbing/xur';
 
 const log = require('app/lib/log')('http');
 
-const componentProfiles = 100;
-const componentVendorReceipts = 101;
-const componentProfileInventories = 102;
-const componentProfileCurrencies = 103;
-const componentCharacters = 200;
-const componentCharacterInventories = 201;
-const componentCharacterProgressions = 202;
-const componentCharacterRenderData = 203;
-const componentCharacterActivities = 204;
-const componentCharacterEquipment = 205;
-const componentItemInstances = 300;
-const componentItemObjectives = 301;
-const componentItemPerks = 302;
-const componentItemRenderData = 303;
-const componentItemStats = 304;
-const componentItemSockets = 305;
-const componentItemTalentGrids = 306;
-const componentItemCommonData = 307;
-const componentItemPlugStates = 308;
-const componentVendors = 400;
-const componentVendorCategories = 401;
-const componentVendorSales = 402;
-const componentKiosks = 500;
+const componentProfiles = 100; // eslint-disable-line
+const componentVendorReceipts = 101; // eslint-disable-line
+const componentProfileInventories = 102; // eslint-disable-line
+const componentProfileCurrencies = 103; // eslint-disable-line
+const componentProfileProgressions = 104; // eslint-disable-line
+const componentCharacters = 200; // eslint-disable-line
+const componentCharacterInventories = 201; // eslint-disable-line
+const componentCharacterProgressions = 202; // eslint-disable-line
+const componentCharacterRenderData = 203; // eslint-disable-line
+const componentCharacterActivities = 204; // eslint-disable-line
+const componentCharacterEquipment = 205; // eslint-disable-line
+const componentItemInstances = 300; // eslint-disable-line
+const componentItemObjectives = 301; // eslint-disable-line
+const componentItemPerks = 302; // eslint-disable-line
+const componentItemRenderData = 303; // eslint-disable-line
+const componentItemStats = 304; // eslint-disable-line
+const componentItemSockets = 305; // eslint-disable-line
+const componentItemTalentGrids = 306; // eslint-disable-line
+const componentItemCommonData = 307; // eslint-disable-line
+const componentItemPlugStates = 308; // eslint-disable-line
+const componentVendors = 400; // eslint-disable-line
+const componentVendorCategories = 401; // eslint-disable-line
+const componentVendorSales = 402; // eslint-disable-line
+const componentCollectibles = 800;
+const componentRecords = 900;
 
 const PROFILE_COMPONENTS = [
   componentProfiles,
-  componentVendorReceipts,
   componentProfileInventories,
-  componentProfileCurrencies,
   componentCharacters,
   componentCharacterInventories,
-  componentCharacterProgressions,
-  componentCharacterRenderData,
-  componentCharacterActivities,
   componentCharacterEquipment,
-  componentItemInstances,
   componentItemObjectives,
-  componentItemPerks,
-  componentItemRenderData,
-  componentItemStats,
   componentItemSockets,
-  componentItemTalentGrids,
-  componentItemCommonData,
-  componentItemPlugStates,
-  componentVendors,
-  componentVendorCategories,
-  componentVendorSales,
-  componentKiosks
+  componentProfileProgressions,
+  componentCharacterProgressions,
+  componentCollectibles,
+  componentRecords
 ];
 
 const VENDOR_COMPONENTS = [
-  componentProfiles,
-  componentVendorReceipts,
-  componentProfileInventories,
-  componentProfileCurrencies,
-  componentCharacters,
-  componentCharacterInventories,
-  componentCharacterProgressions,
-  componentCharacterRenderData,
-  componentCharacterActivities,
-  componentCharacterEquipment,
-  componentItemInstances,
-  componentItemObjectives,
-  componentItemPerks,
-  componentItemRenderData,
-  componentItemStats,
   componentItemSockets,
-  componentItemTalentGrids,
-  componentItemCommonData,
   componentItemPlugStates,
-  componentVendors,
-  componentVendorCategories,
-  componentVendorSales,
-  componentKiosks
+  componentVendorSales
 ];
 
 let DEBUG_STORE = {
@@ -97,22 +67,11 @@ function getEnsuredAccessTokenNoop() {
   return Promise.resolve(null);
 }
 
-export function getDestiny(_pathname, opts = {}, postBody) {
-  const url = `https://www.bungie.net${_pathname}`;
-  const { pathname } = new URL(url);
-
-  const lsCacheKey = `__apiCache|${url}`;
-  if (window.__CACHE_API) {
-    const cached = localStorage.getItem(lsCacheKey);
-    if (cached) {
-      return Promise.resolve(JSON.parse(cached));
-    }
-  }
-
-  const apiKey = process.env.REACT_APP_API_KEY;
+export function getDestiny(pathname, opts = {}, postBody) {
+  const url = `https://www.bungie.net${pathname}`;
 
   opts.headers = opts.headers || {};
-  opts.headers['x-api-key'] = apiKey;
+  opts.headers['x-api-key'] = process.env.REACT_APP_API_KEY;
 
   const authTokenFn = opts._noAuth
     ? getEnsuredAccessTokenNoop
@@ -140,6 +99,13 @@ export function getDestiny(_pathname, opts = {}, postBody) {
       return get(url, opts);
     })
     .then(resp => {
+      // const resp = {
+      //   ErrorCode: 5,
+      //   ErrorStatus: 'SystemDisabled',
+      //   Message: 'This system is temporarily disabled for maintenance.',
+      //   MessageData: '{}'
+      // };
+
       log(`RESPONSE: ${pathname}`, resp);
 
       if (resp.ErrorStatus === 'DestinyAccountNotFound') {
@@ -147,13 +113,6 @@ export function getDestiny(_pathname, opts = {}, postBody) {
       }
 
       if (has(resp, 'ErrorCode') && resp.ErrorCode !== 1) {
-        trackBreadcrumb({
-          message: 'Bungie API Error',
-          category: 'api',
-          level: 'error',
-          data: { url, ...resp }
-        });
-
         const cleanedUrl = url.replace(/\/\d+\//g, '/_/');
         const err = new Error(
           'Bungie API Error ' +
@@ -164,31 +123,24 @@ export function getDestiny(_pathname, opts = {}, postBody) {
             cleanedUrl
         );
 
+        err.response = resp;
         err.data = resp;
 
-        if (resp.ErrorStatus === 'DestinyCharacterNotFound') {
-          // TODO: remove this sometime later
-          const debugId = ls.getDebugId();
-          saveDebugInfo(
-            {
-              debugData: JSON.stringify(DEBUG_STORE),
-              resp: JSON.stringify(resp),
-              debugId
-            },
-            'DestinyCharacterNotFound'
-          );
+        if (resp.ErrorStatus !== 'SystemDisabled') {
+          trackError(err);
+        } else {
+          trackBreadcrumb({
+            message: 'Bungie API Error',
+            category: 'api',
+            level: 'error',
+            data: { url, ...resp }
+          });
         }
-
-        trackError(err);
 
         throw err;
       }
 
       const result = resp.Response || resp;
-
-      if (window.__CACHE_API) {
-        localStorage.setItem(lsCacheKey, JSON.stringify(result));
-      }
 
       return result;
     });
@@ -202,8 +154,6 @@ export function getVendors(membership, characterId) {
       ','
     )}`
   ).catch(err => {
-    trackError(err);
-
     console.error('Error fetching vendors for', {
       membershipType,
       membershipId,
@@ -252,10 +202,6 @@ export function getExtendedProfile(ship) {
       Object.keys(profile.characters.data).forEach((characterId, index) => {
         if (characterVendors[index]) {
           profile.$vendors.data[characterId] = characterVendors[index];
-        } else {
-          trackError(new Error('Missing vendor for character'), {
-            level: 'warning'
-          });
         }
       });
 
@@ -293,7 +239,12 @@ export function getCurrentProfiles() {
         bungieNetUser
       };
 
-      ls.saveProfiles(payload);
+      try {
+        ls.saveProfiles(payload);
+      } catch (err) {
+        console.error('Unable to save profiles to localStorage');
+        console.error(err);
+      }
 
       return payload;
     });
@@ -341,12 +292,35 @@ export function getCurrentProfile() {
   });
 }
 
-export function xur() {
-  return get(XUR_URL).then(xurData => {
+function cachedGet(url, cb) {
+  const cached = ls.getCachedUrl(url);
+
+  if (cached) {
+    cb(null, cached);
+  }
+
+  return get(url)
+    .then(data => {
+      ls.saveCachedUrl(url, data);
+      cb(null, data);
+    })
+    .catch(err => cb(err));
+}
+
+export function xur(cb) {
+  return cachedGet(XUR_URL, (err, xurData) => {
+    if (err) {
+      return cb(err);
+    }
+
     const isLive =
       window.location.href.indexOf('forceXur') > -1 || xurData.isLive;
-    return isLive
-      ? { xurItems: xurData.itemHashes, xurLocation: xurData.location }
-      : [];
+
+    const payload =
+      isLive && xurData.itemHashes.length > 0
+        ? { items: xurData.itemHashes, location: xurData.location }
+        : { items: [] };
+
+    cb(null, payload);
   });
 }

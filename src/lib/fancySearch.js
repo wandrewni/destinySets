@@ -1,7 +1,9 @@
-import { intersection } from 'lodash';
+import { intersection, overEvery, invert, get as lodashGet } from 'lodash';
 
 import * as enums from 'app/lib/destinyEnums';
 import { getLower as get } from 'app/lib/utils';
+
+import catalystTriumphs from 'app/extraData/catalystTriumphs';
 
 const tierType = hash => item => item.inventory.tierTypeHash === hash;
 const classType = value => item => item.classType === value && !item.redacted;
@@ -19,18 +21,19 @@ const COLLECTABLE = [
   enums.WEAPON,
   enums.ARMOR,
   enums.GHOST,
+  enums.GHOST_PROJECTION,
   enums.SPARROW,
   enums.SHIP,
   enums.SHADER,
   enums.EMBLEM
 ];
 
-const itemFilter = (items, fn) => {
+const itemFilter = (items, ...fns) => {
   return items.filter(item => {
     return (
       item.displayProperties.name &&
       item.displayProperties.name.length > 0 &&
-      fn(item)
+      overEvery(fns)(item)
     );
   });
 };
@@ -69,6 +72,7 @@ export const fancySearchFns = {
   'is:kinetic': items => itemFilter(items, itemCategory(enums.KINETIC_WEAPON)),
   'is:energy': items => itemFilter(items, itemCategory(enums.ENERGY_WEAPON)),
   'is:power': items => itemFilter(items, itemCategory(enums.POWER_WEAPON)),
+  'is:dummy': items => itemFilter(items, itemCategory(enums.DUMMIES)),
 
   'is:armor': items => {
     return items.filter(isArmor);
@@ -78,15 +82,26 @@ export const fancySearchFns = {
     return itemFilter(items, item => {
       const categories = item.itemCategoryHashes || [];
       return (
-        categories.includes(enums.ARMOR) ||
-        categories.includes(enums.WEAPON) ||
-        categories.includes(enums.GHOST)
+        categories.includes(enums.ARMOR) || categories.includes(enums.WEAPON)
       );
     });
   },
 
   'is:ghost': items => {
     return itemFilter(items, itemCategory(enums.GHOST));
+  },
+
+  'is:ghostprojection': items => {
+    return itemFilter(items, itemCategory(enums.GHOST_PROJECTION));
+  },
+
+  'is:ghostly': items => {
+    return itemFilter(items, item => {
+      return (
+        itemCategory(enums.GHOST)(item) ||
+        itemCategory(enums.GHOST_PROJECTION)(item)
+      );
+    });
   },
 
   'is:sparrow': items => {
@@ -101,8 +116,16 @@ export const fancySearchFns = {
     return itemFilter(items, itemCategory(enums.SHADER));
   },
 
-  'is:emote': items => {
+  'is:oldemote': items => {
     return itemFilter(items, itemCategory(enums.EMOTES));
+  },
+
+  'is:emote': items => {
+    return itemFilter(
+      items,
+      itemCategory(enums.EMOTES),
+      itemCategory(enums.MODS2)
+    );
   },
 
   'is:emblem': items => {
@@ -162,18 +185,72 @@ export const fancySearchFns = {
 
   'is:clanbanner': items => {
     return itemFilter(items, itemCategory(enums.CLAN_BANNER));
+  },
+
+  'is:masterworkish': items => {
+    return itemFilter(items, item => {
+      return (
+        item.plug &&
+        item.plug.uiPlugLabel &&
+        item.plug.uiPlugLabel.includes('masterwork')
+      );
+    });
   }
 };
 
 export const fancySearchTerms = Object.keys(fancySearchFns);
 
-export default function fancySearch(search, defs, opts = { hashOnly: false }) {
-  const queries = search.split(' ').filter(s => s.includes(':'));
+const CATALYST_PRESENTATION_NODES = {
+  kinetic: 4145555894,
+  energy: 259629437,
+  power: 3274555605
+};
 
+const catalystItemsByRecordHash = invert(catalystTriumphs);
+
+export default function fancySearch(search, defs, opts = { hashOnly: false }) {
+  const [, catalystWeaponType] = search.match(/special:(\w+)Catalysts/) || [];
+
+  if (catalystWeaponType && defs.presentationNodeDefs) {
+    const nodeHash = CATALYST_PRESENTATION_NODES[catalystWeaponType];
+    const node = defs.presentationNodeDefs[nodeHash];
+
+    if (!node) {
+      debugger;
+      console.warn(
+        'Unable to find presentation node for',
+        catalystWeaponType,
+        'catalysts'
+      );
+
+      return [];
+    }
+
+    const itemHashes = lodashGet(node, 'children.records', [])
+      .map(({ recordHash }) => {
+        return parseInt(catalystItemsByRecordHash[recordHash], 10);
+      })
+      .filter(Boolean);
+
+    console.log({ catalystWeaponType, itemHashes });
+
+    return opts.hashOnly
+      ? itemHashes
+      : itemHashes.map(h => defs.item.find(d => d.hash === h));
+  }
+
+  const queries = search.split(' ').filter(s => s.includes(':'));
   const filteredItems = queries.reduce((items, query) => {
     const searchFunc = fancySearchFns[query];
 
     if (!searchFunc) {
+      let match = query.match(/itemcategoryhash:(\d+)/);
+
+      if (match) {
+        const hash = Number(match[1]);
+        return itemFilter(items, itemCategory(hash));
+      }
+
       return items;
     }
 

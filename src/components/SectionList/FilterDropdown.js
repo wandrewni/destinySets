@@ -7,7 +7,10 @@ import {
   TITAN,
   WARLOCK,
   FILTER_SHOW_COLLECTED,
-  FILTER_SHOW_PS4_EXCLUSIVES
+  FILTER_SHOW_PS4_EXCLUSIVES,
+  FILTER_SHOW_HIDDEN_SETS,
+  FILTER_SHOW_ORNAMENTS,
+  FILTER_SHOW_WEAPONS
 } from 'app/lib/destinyEnums';
 
 import styles from 'app/components/Header/dropdownStyles.styl';
@@ -17,25 +20,25 @@ const FILTER_NAMES = {
   [TITAN]: 'Titan',
   [WARLOCK]: 'Warlock',
   [FILTER_SHOW_COLLECTED]: 'Collected items',
-  [FILTER_SHOW_PS4_EXCLUSIVES]: 'PS4 Exclusives'
+  [FILTER_SHOW_PS4_EXCLUSIVES]: 'PS4 Exclusives',
+  [FILTER_SHOW_ORNAMENTS]: 'Ornaments',
+  [FILTER_SHOW_WEAPONS]: 'Weapons',
+  [FILTER_SHOW_HIDDEN_SETS]: 'Hidden sets'
 };
 
 export default class FilterDropdown extends Component {
   renderContent = () => {
-    const { filters, toggleFilter } = this.props;
+    const { filters, setFilterItem } = this.props;
+
     return (
       <Fragment>
         {Object.keys(filters).map(key => (
-          <label
-            key={key}
-            className={styles.dropdownItem}
-            onClick={() => toggleFilter(key)}
-          >
+          <label key={key} className={styles.dropdownItem}>
             <input
               className={styles.checkbox}
               type="checkbox"
               checked={filters[key]}
-              readOnly
+              onChange={ev => setFilterItem(key, ev.target.checked)}
             />{' '}
             {FILTER_NAMES[key]}
           </label>
@@ -47,6 +50,7 @@ export default class FilterDropdown extends Component {
   render() {
     return (
       <DropdownMenu
+        stayOpen
         inline={this.props.inline}
         className={styles.root}
         renderContent={this.renderContent}

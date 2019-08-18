@@ -1,31 +1,45 @@
-module.exports = [
+// @flow
+
+import type { SetPage } from '../types';
+
+const strike = (name, id, image, exclusiveItems, emblems) => ({
+  name,
+  id,
+  image,
+  sections: [
+    {
+      name: 'Nightfall exclusive',
+      bigItems: true,
+      items: exclusiveItems
+    },
+    {
+      name: 'Nightfall emblems',
+      items: emblems
+    }
+  ]
+});
+
+export default ([
   {
     name: 'Base Game',
     sets: [
-      {
-        name: 'The Inverted Spire',
-        small: true,
-        image: '/img/destiny_content/pgcr/strike_inverted_spire.jpg',
-        sections: [
-          {
-            name: 'Nightfall exclusive',
-            bigItems: true,
-            items: [953357968] // Trichromatica
-          },
-          {
-            name: 'Nightfall emblems',
-            items: [
-              2764373298, // The Inverted Spire
-              4238775804, // Operation Radiolarian Cascade
-              4238775806, // Unconventional Research
-              4238775807 // A Mind Forever Changing
-            ]
-          }
+      strike(
+        'The Inverted Spire',
+        'STRIKE_THE_INVERTED_SPIRE',
+        '/img/destiny_content/pgcr/strike_inverted_spire.jpg',
+        [
+          953357968 // Trichromatica
+        ],
+        [
+          2764373298, // The Inverted Spire
+          4238775804, // Operation Radiolarian Cascade
+          4238775806, // Unconventional Research
+          4238775807 // A Mind Forever Changing
         ]
-      },
+      ),
       {
         name: 'Pyramidion',
-        small: true,
+        id: 'STRIKE_PYRAMIDION',
         image: '/img/destiny_content/pgcr/strike_the_pyramdion.jpg',
         sections: [
           {
@@ -46,7 +60,7 @@ module.exports = [
       },
       {
         name: 'Exodus Crash',
-        small: true,
+        id: 'STRIKE_EXODUS_CRASH',
         image: '/img/destiny_content/pgcr/strike_exodus_crash.jpg',
         sections: [
           {
@@ -67,7 +81,7 @@ module.exports = [
       },
       {
         name: 'The Arms Dealer',
-        small: true,
+        id: 'STRIKE_THE_ARMS_DEALER',
         image: '/img/destiny_content/pgcr/strike_the_arms_dealer.jpg',
         sections: [
           {
@@ -88,7 +102,7 @@ module.exports = [
       },
       {
         name: "Savathûn's Song",
-        small: true,
+        id: "STRIKE_SAVATHÛN'S_SONG",
         image: '/img/destiny_content/pgcr/strike_savanthuns_song.jpg',
         sections: [
           {
@@ -106,18 +120,6 @@ module.exports = [
             ]
           }
         ]
-      },
-      {
-        name: 'Lake of Shadows',
-        small: true,
-        image: '/img/destiny_content/pgcr/strike_lake_of_shadows.jpg',
-        sections: [
-          // {
-          //   name: 'Nightfall exclusive',
-          //   bigItems: true,
-          //   items: [2082184158]
-          // }
-        ]
       }
     ]
   },
@@ -126,8 +128,8 @@ module.exports = [
     sets: [
       {
         name: 'Tree Of Probabilities',
+        id: 'STRIKE_TREE_OF_PROBABILITIES',
         image: '/img/destiny_content/pgcr/campaign_tree_of_probabilities.jpg',
-        small: true,
         sections: [
           {
             name: 'Nightfall exclusive',
@@ -149,8 +151,8 @@ module.exports = [
       },
       {
         name: 'A Garden World',
+        id: 'STRIKE_A_GARDEN_WORLD',
         image: '/img/destiny_content/pgcr/rituals_a_garden_world.jpg',
-        small: true,
         sections: [
           {
             name: 'Nightfall exclusive',
@@ -171,5 +173,98 @@ module.exports = [
         ]
       }
     ]
+  },
+
+  {
+    name: 'Warmind',
+    sets: [
+      {
+        name: 'Will of the Thousands',
+        id: 'STRIKE_WILL_OF_THE_THOUSANDS',
+        image: '/img/destiny_content/pgcr/strike_xol.jpg',
+        sections: [
+          {
+            name: 'Nightfall exclusive',
+            bigItems: true,
+            items: [
+              1311389413 // Worm God Incarnation
+            ]
+          },
+          {
+            name: 'Nightfall emblems',
+            items: [
+              3427785728, // Will of the Thousands
+              1456844009, // Feast of Worms
+              1456844010, // Death to the Deathless
+              1456844008 // Giantfall
+            ]
+          }
+        ]
+      },
+      {
+        name: 'Strange Terrain',
+        id: 'STRIKE_STRANGE_TERRAIN',
+        image: '/img/destiny_content/pgcr/strike_nokris.jpg',
+        sections: [
+          {
+            name: 'Nightfall exclusive',
+            bigItems: true,
+            items: [
+              1929278169 // BrayTech Osprey
+            ]
+          },
+          {
+            name: 'Nightfall emblems',
+            items: [
+              2136479687, // Strange Terrain
+              1901100185, // Maleficarum Interrupted
+              1901100187, // Bane of Nokris
+              1901100184 // Purifying Light
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  {
+    name: 'Forsaken',
+    sets: [
+      strike(
+        'Lake of Shadows',
+        'STRIKE_LAKE_OF_SHADOWS',
+        '/img/destiny_content/pgcr/strike_lake_of_shadows.jpg',
+        [3745974521],
+        [1184965378, 4179974574]
+      ),
+      strike(
+        'The Insight Terminus',
+        'STRIKE_INSIGHT_TERMINUS',
+        '/img/destiny_content/pgcr/strike_glee.jpg',
+        [2154059444],
+        [3844225097, 3597022727]
+      ),
+      strike(
+        'The Corrupted',
+        'STRIKE_THE_CORRUPTED',
+        '/img/destiny_content/pgcr/strike_gemini.jpg',
+        [1071542914],
+        [4162792207, 1777460225]
+      ),
+      strike(
+        'The Hollowed Lair',
+        'STRIKE_THE_HOLLOWED_LAIR',
+        '/img/destiny_content/pgcr/strike_taurus.jpg',
+        [4117693024],
+        [1639160638, 3819100474]
+      ),
+      strike(
+        'Warden of Nothing',
+        'STRIKE_WARDEN_OF_NOTHING',
+        '/img/destiny_content/pgcr/strike_aries.jpg',
+        [233423981],
+        [1814407142, 1582507554]
+      )
+    ]
   }
-];
+]: SetPage);

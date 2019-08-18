@@ -1,16 +1,40 @@
-import React, { Component } from 'react';
+import React, { PureComponent } from 'react';
+import { connect } from 'react-redux';
 import cx from 'classnames';
 
-// import ItemTooltip from 'app/components/ItemTooltip';
+import {
+  LEGENDARY,
+  EXOTIC,
+  UNCOMMON,
+  RARE,
+  COMMON,
+  EMBLEM,
+  CLASSES,
+  MASTERWORK_FLAG
+} from 'app/lib/destinyEnums';
+import Icon from 'app/components/Icon';
+import BungieImage from 'app/components/BungieImage';
 
-// import ToolTip from 'app/components/ReactPortalTooltip';
+import {
+  makeItemInventoryEntrySelector,
+  makeItemVendorEntrySelector,
+  makeItemPresentationSelector
+} from 'app/store/selectors';
 
+import {
+  makeItemDefSelector,
+  makeItemObjectiveProgressSelector
+} from './selectors';
+
+import masterworkOutline from './masterwork-outline.png';
 import styles from './styles.styl';
 
-const CLASS_TYPE = {
-  0: 'Titan',
-  1: 'Hunter',
-  2: 'Warlock'
+const TIER_COLOR = {
+  [EXOTIC]: '#ceae33',
+  [LEGENDARY]: '#522f65',
+  [UNCOMMON]: '#366f3c',
+  [RARE]: '#5076a3',
+  [COMMON]: '#c3bcb4'
 };
 
 function isMobile() {
@@ -23,124 +47,234 @@ function isMobile() {
   );
 }
 
-// const tooltipStyle = {
-//   style: {
-//     background: '#20262d',
-//     padding: 0,
-//     boxShadow: '0px 2px 3px rgba(0,0,0,.5)'
-//   },
-//   arrowStyle: {
-//     color: '#20262d',
-//     borderColor: false
-//   }
-// };
+const IS_MOBILE = isMobile();
 
-export default class Item extends Component {
-  state = {
-    isTooltipActive: false
+function getItemColor(item) {
+  if (!item) {
+    return null;
+  }
+
+  const { red, green, blue } = item.backgroundColor || {
+    red: 0,
+    green: 0,
+    blue: 0
+  };
+  const luminosity = red + green + blue;
+  if (
+    (item.itemCategoryHashes || []).includes(EMBLEM) &&
+    luminosity > 10 &&
+    luminosity < 735
+  ) {
+    return `rgb(${red}, ${green}, ${blue})`;
+  } else {
+    return TIER_COLOR[item.inventory.tierTypeHash];
+  }
+}
+
+const isMasterwork = inventoryEntry => {
+  if (!inventoryEntry) {
+    return false;
+  }
+
+  return !!inventoryEntry.instances.find(instance => {
+    return instance.itemState & MASTERWORK_FLAG;
+  });
+};
+
+const ROLE_PERKS = [
+  326979294,
+  911695907,
+  3047801520,
+  1233336930,
+  2575042148,
+  3588389153,
+  548249507,
+  2684355120,
+  4258500190,
+  149961592,
+  446122123,
+  1263189958
+];
+
+class Item extends PureComponent {
+  onMouseEnter = () => {
+    const { setPopper, itemHash } = this.props;
+    !IS_MOBILE && setPopper && setPopper(itemHash, this.ref);
   };
 
-  showTooltip = () => {
-    if (!this.props.supressTooltip && !isMobile()) {
-      this.setState({ isTooltipActive: true });
-    }
-  };
-  hideTooltip = () => {
-    this.setState({ isTooltipActive: false });
+  onMouseLeave = () => {
+    const { setPopper } = this.props;
+    setPopper && setPopper(null);
   };
 
   onClick = ev => {
-    this.props.onClick && this.props.onClick(ev, this.props.item);
+    const { onClick, onItemClick, itemHash } = this.props;
+    if (onClick) {
+      onClick(ev);
+      return;
+    }
+
+    onItemClick && onItemClick(itemHash);
+  };
+
+  getRef = ref => {
+    this.ref = ref;
   };
 
   render() {
-    const { className, item, dev, small, tiny, linkToData } = this.props;
+    const {
+      className,
+      itemDef,
+      roleDef,
+      displayItem,
+      inventoryEntry,
+      extended,
+      hideMissing,
+      vendorEntry,
+      itemObjectiveProgress
+    } = this.props;
 
-    const itemLink = linkToData
-      ? `/data/${item.hash}`
-      : `http://db.destinytracker.com/d2/en/items/${item.hash}`;
+    const bgColor = getItemColor(itemDef);
 
-    const dtrProps = {
-      href: itemLink,
-      target: '_blank',
-      'data-dtr-tooltip': 'no-show'
-    };
+    if (!itemDef) {
+      if (hideMissing) {
+        return null;
+      }
+      return (
+        <div
+          data-item-hash={this.props.itemHash}
+          className={cx(className, styles.placeholder)}
+          style={{ backgroundColor: bgColor }}
+        />
+      );
+    }
 
-    const globalItemCount = !!this.state.globalItemCount;
-    const obtained = !globalItemCount && item.$obtained;
-    const dismantled = !globalItemCount && (item.$obtained && item.$dismantled);
-
-    const rootClassName = cx(styles.root, {
-      [styles.small]: small,
-      [styles.tiny]: tiny,
-      [styles.globallyObtained]: globalItemCount,
-      [styles.obtained]: obtained,
-      [styles.dismantled]: dismantled,
-      [styles.forSale]: item.forSale
-    });
-
-    const { name, icon: _icon } = item.displayProperties || { name: 'no name' };
-    const icon = _icon || '/img/misc/missing_icon_d2.png';
+    const icon =
+      displayItem.displayProperties.icon || '/img/misc/missing_icon_d2.png';
 
     return (
       <div
+        onMouseEnter={this.onMouseEnter}
+        onMouseLeave={this.onMouseLeave}
         onClick={this.onClick}
-        className={cx(rootClassName, className)}
-        data-class={item.dClass}
-      >
-        {globalItemCount && (
-          <div className={styles.countOverlay}>
-            {Math.round(this.state.globalItemCount * 100)}%
-          </div>
+        ref={this.getRef}
+        className={cx(
+          className,
+          styles.root,
+          inventoryEntry && inventoryEntry.obtained && styles.obtained,
+          inventoryEntry && inventoryEntry.checklisted && styles.checklisted,
+          inventoryEntry &&
+            (inventoryEntry.dismantled || inventoryEntry.manuallyObtained) &&
+            styles.dismantled
         )}
+      >
+        <div className={styles.imageWrapper}>
+          <div className={styles.fadeOut}>
+            {isMasterwork(inventoryEntry) && (
+              <img
+                className={styles.overlay}
+                src={masterworkOutline}
+                alt="Masterwork"
+              />
+            )}
 
-        <div className={styles.accessory}>
-          <a className={styles.link} {...dtrProps}>
             <img
-              className={styles.image}
               src={`https://www.bungie.net${icon}`}
+              className={styles.image}
+              style={{ backgroundColor: bgColor }}
               alt=""
-              id={`item${item.hash}`}
-              onMouseEnter={this.showTooltip}
-              onMouseLeave={this.hideTooltip}
             />
-          </a>
+
+            {roleDef && (
+              <BungieImage
+                src={roleDef.displayProperties.icon}
+                className={styles.role}
+              />
+            )}
+
+            {inventoryEntry && (
+              <div className={styles.tick}>
+                <Icon icon="check" />
+              </div>
+            )}
+
+            {!inventoryEntry && vendorEntry && (
+              <div className={styles.purchasableTick}>
+                <Icon icon="dollar-sign" />
+              </div>
+            )}
+          </div>
+
+          {itemObjectiveProgress !== 0 && itemObjectiveProgress !== 1 && (
+            <div
+              className={cx(
+                styles.objectiveOverlay,
+                itemObjectiveProgress === 1 && styles.objectivesComplete
+              )}
+            >
+              <div
+                className={styles.objectiveTrack}
+                style={{
+                  width: `${itemObjectiveProgress * 100}%`
+                }}
+              />
+            </div>
+          )}
         </div>
 
-        {!small && (
-          <div className={styles.main}>
-            <div className={styles.name}>
-              <a className={styles.link} {...dtrProps}>
-                {name}
-              </a>
-            </div>
-            <div className={styles.type}>
-              {CLASS_TYPE[item.classType]}{' '}
-              {dev
-                ? item.itemHash
-                : item.itemTypeName || item.itemTypeDisplayName}
+        {extended && (
+          <div className={styles.extended}>
+            <div>{displayItem.displayProperties.name}</div>
+            <div className={styles.itemType}>
+              {CLASSES[itemDef.classType]}{' '}
+              {itemDef.itemTypeName || itemDef.itemTypeDisplayName}
             </div>
           </div>
         )}
-
-        {/*item.inventory && (
-          <ToolTip
-            style={tooltipStyle}
-            active={this.state.isTooltipActive}
-            position="right"
-            arrow="center"
-            parent={`#item${item.hash}`}
-            className={styles.tooltip}
-            tooltipTimeout={0}
-          >
-            <ItemTooltip
-              key={item.hash}
-              item={item}
-              globalItemCount={this.state.globalItemCount}
-            />
-          </ToolTip>
-        )*/}
       </div>
     );
   }
 }
+
+function mapStateToProps() {
+  const itemDefSelector = makeItemDefSelector();
+  const itemInventoryEntrySelector = makeItemInventoryEntrySelector();
+  const itemVendorEntrySelector = makeItemVendorEntrySelector();
+  const itemObjectiveProgressSelector = makeItemObjectiveProgressSelector();
+  const itemPresentationSelector = makeItemPresentationSelector();
+
+  return (state, ownProps) => {
+    const displayItem = itemPresentationSelector(state, ownProps);
+
+    const itemDef = itemDefSelector(state, ownProps);
+
+    const firstPerk =
+      itemDef && itemDef.sockets && itemDef.sockets.socketEntries[0];
+    const roleHash =
+      firstPerk &&
+      ROLE_PERKS.includes(firstPerk.singleInitialItemHash) &&
+      firstPerk.singleInitialItemHash;
+    const roleDef =
+      state.definitions.DestinyInventoryItemDefinition &&
+      state.definitions.DestinyInventoryItemDefinition[roleHash];
+
+    // if (
+    //   ownProps.itemHash === 1886580966 ||
+    //   ownProps.itemHash === '1886580966'
+    // ) {
+    //   debugger;
+    // }
+
+    return {
+      itemDef,
+      roleDef,
+      inventoryEntry: itemInventoryEntrySelector(state, ownProps),
+      vendorEntry: itemVendorEntrySelector(state, ownProps),
+      itemObjectiveProgress: itemObjectiveProgressSelector(state, ownProps),
+      displayItem,
+      cool: 'yes'
+    };
+  };
+}
+
+export default connect(mapStateToProps)(Item);

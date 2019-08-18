@@ -1,4 +1,5 @@
 import 'app/lib/autotrack.build';
+import 'indexeddbshim/dist/indexeddbshim.min';
 
 import React from 'react';
 import ReactDOM from 'react-dom';
@@ -25,6 +26,8 @@ const render = App => {
 };
 
 if (!isAuthRefreshiFrame) {
+  ls.cleanUp();
+
   render(AppRouter);
   ReactModal.setAppElement('#root');
 

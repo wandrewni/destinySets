@@ -1,23 +1,39 @@
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { Link } from 'react-router';
-import Modal from 'react-modal';
 
-import { EMBLEM } from 'app/lib/destinyEnums';
-import getItemExtraInfo from 'app/lib/getItemExtraInfo';
+import { EMBLEM, WEAPON, EXOTIC } from 'app/lib/destinyEnums';
+import { hasCategoryHash } from 'app/lib/destinyUtils';
+import ItemAttributes from 'app/components/ItemAttributes';
 import Objectives from 'app/components/Objectives';
 import ItemBanner from 'app/components/ItemBanner';
+import Modal from 'app/components/Modal';
+import ItemPerks from 'app/components/ItemPerks';
+import Icon from 'app/components/Icon';
+import ExtraInfo from 'app/components/ExtraInfo';
+import ChaliceRecipie from 'app/components/ChaliceRecipie';
 import ishtarSvg from 'app/ishar.svg';
 
-import { trackOrnament as trackOrnamentAction } from 'app/store/reducer';
+import CHALICE_DATA from 'app/extraData/chalice';
+
+import {
+  trackOrnament as trackOrnamentAction,
+  toggleManuallyObtained as toggleManuallyObtainedAction,
+  forgetDismantled as forgetDismantledAction
+} from 'app/store/reducer';
 
 import {
   makeItemSelector,
   objectiveDefsSelector,
   statDefsSelector,
   makeItemStatsSelector,
-  profileObjectivesSelector,
-  makeItemInventoryEntrySelector
+  objectiveInstancesSelector,
+  checklistInventorySelector,
+  makeItemInventoryEntrySelector,
+  makeItemVendorEntrySelector,
+  makeItemHashToCollectableSelector,
+  makeItemPerksSelector,
+  makeItemPresentationSelector
 } from 'app/store/selectors';
 
 import styles from './styles.styl';
@@ -28,35 +44,42 @@ class ItemModalContent extends Component {
       trackOrnament,
       onRequestClose,
       item,
+      displayItem,
       itemInventoryEntry,
-      profileObjectives,
-      objectiveDefs
+      objectiveInstances,
+      objectiveDefs,
+      toggleManuallyObtained,
+      forgetDismantled,
+      googleAuth,
+      collectionInventory,
+      vendorEntry,
+      collectible,
+      perks
     } = this.props;
 
-    const {
-      hash,
-      displayProperties,
-      screenshot,
-      itemCategoryHashes,
-      loreHash
-    } = item;
+    const { hash, screenshot, itemCategoryHashes, loreHash } = item;
+    const { displayProperties } = displayItem || item;
 
-    const dtrLink = `http://db.destinytracker.com/d2/en/items/${hash}`;
     const ishtarLink =
       loreHash && `http://www.ishtar-collective.net/entries/${loreHash}`;
 
     const isEmblem = (itemCategoryHashes || []).includes(EMBLEM);
-    const extraInfo = getItemExtraInfo(item, itemInventoryEntry);
+    const hideObjectives =
+      hasCategoryHash(item, WEAPON) &&
+      item.inventory &&
+      item.inventory.tierTypeHash === EXOTIC;
 
     const objectiveHashes = [
       item.emblemObjectiveHash,
       ...((item.objectives || {}).objectiveHashes || [])
     ].filter(Boolean);
 
+    const chaliceRecipie = CHALICE_DATA[item.hash];
+
     return (
       <div className={styles.root}>
         <button className={styles.close} onClick={onRequestClose}>
-          <i className="fa fa-close" />
+          <Icon icon="times" />
         </button>
 
         {screenshot && (
@@ -69,34 +92,31 @@ class ItemModalContent extends Component {
           </div>
         )}
 
-        <ItemBanner className={styles.itemTop} item={this.props.item} />
+        <ItemBanner
+          className={styles.itemTop}
+          item={this.props.item}
+          displayItem={displayItem}
+        />
+
+        <ItemAttributes item={item} />
 
         {displayProperties.description && (
           <p className={styles.description}>{displayProperties.description}</p>
         )}
 
-        {ishtarLink && (
-          <p>
-            <img alt="" src={ishtarSvg} className={styles.ishtarLogo} />
-            <a href={ishtarLink} target="_blank" rel="noopener noreferrer">
-              <em>View Lore on Ishtar Collective</em>
-            </a>
-          </p>
+        {collectible &&
+          collectible.sourceString &&
+          collectible.sourceString.length > 1 && (
+            <p className={styles.extraInfo}>
+              <Icon name="info-circle" /> {collectible.sourceString}
+            </p>
+          )}
+
+        {perks && perks.length > 0 && (
+          <ItemPerks className={styles.perks} perks={perks} />
         )}
 
-        <ul className={styles.viewItemLinks}>
-          <li>
-            <a href={dtrLink} target="_blank" rel="noopener noreferrer">
-              View on DestinyTracker
-            </a>
-          </li>
-
-          <li>
-            <Link to={`/data/${hash}`}>View in Data Explorer</Link>
-          </li>
-        </ul>
-
-        {objectiveHashes.length ? (
+        {!hideObjectives && objectiveHashes.length > 0 && (
           <div>
             <h3 className={styles.objectiveTitle}>
               Complete Objectives to Unlock
@@ -105,54 +125,95 @@ class ItemModalContent extends Component {
             <Objectives
               className={styles.objectives}
               trackedStatStyle={isEmblem}
-              objectives={objectiveHashes}
-              profileObjectives={profileObjectives}
+              objectiveHashes={objectiveHashes}
+              objectiveInstances={objectiveInstances}
               objectiveDefs={objectiveDefs}
             />
+          </div>
+        )}
 
+        <p>
+          {!!objectiveHashes.length && (
             <button
-              className={styles.button}
+              className={styles.mainButton}
               onClick={() => trackOrnament(hash)}
             >
               Track objective progress
             </button>
-          </div>
-        ) : null}
+          )}
 
-        {extraInfo.map((info, index) => (
-          <div key={index} className={styles.extraInfo}>
-            {info}
-          </div>
-        ))}
+          {itemInventoryEntry && itemInventoryEntry.dismantled && (
+            <button
+              className={styles.button}
+              onClick={() => forgetDismantled(hash)}
+            >
+              Forget dismantled
+            </button>
+          )}
+
+          {googleAuth.signedIn && !itemInventoryEntry && (
+            <button
+              className={styles.button}
+              onClick={() => toggleManuallyObtained(hash)}
+            >
+              Mark as collected
+            </button>
+          )}
+
+          {itemInventoryEntry && itemInventoryEntry.manuallyObtained && (
+            <button
+              className={styles.button}
+              onClick={() => toggleManuallyObtained(hash)}
+            >
+              Unmark as collected
+            </button>
+          )}
+        </p>
+
+        <div className={styles.section}>
+          {chaliceRecipie && <ChaliceRecipie recipie={chaliceRecipie} />}
+        </div>
+
+        <ul className={styles.viewItemLinks}>
+          {ishtarLink && (
+            <li>
+              <a href={ishtarLink} target="_blank" rel="noopener noreferrer">
+                <img alt="" src={ishtarSvg} className={styles.ishtarLogo} />
+                View Lore on Ishtar Collective
+              </a>
+            </li>
+          )}
+
+          {/*<li>
+            <a href={dtrLink} target="_blank" rel="noopener noreferrer">
+              View on DestinyTracker
+            </a>
+          </li>*/}
+
+          <li>
+            <Link to={`/data/${hash}`}>View in Data Explorer</Link>
+          </li>
+
+          <li>
+            <Link to={`/item/${hash}`}>View perks</Link>
+          </li>
+        </ul>
+
+        <ExtraInfo
+          className={styles.extraInfo}
+          item={item}
+          inventoryEntry={itemInventoryEntry}
+          vendorEntry={vendorEntry}
+          inCollection={collectionInventory[item.hash]}
+        />
       </div>
     );
   }
 }
 
-const MODAL_STYLES = {
-  overlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    marginTop: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10
-  },
-  content: {
-    position: 'static',
-    background: 'none',
-    border: 'none'
-  }
-};
-
 function ItemModalWrapper({ isOpen, onRequestClose, trackOrnament, ...props }) {
   return (
-    <Modal
-      isOpen={isOpen}
-      onRequestClose={onRequestClose}
-      contentLabel="Modal"
-      style={MODAL_STYLES}
-    >
+    <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
       {props.item && (
         <ItemModalContent
           {...props}
@@ -168,21 +229,36 @@ const mapStateToProps = () => {
   const itemStatsSelector = makeItemStatsSelector();
   const itemSelector = makeItemSelector();
   const itemInventoryEntrySelector = makeItemInventoryEntrySelector();
+  const itemVendorEntrySelector = makeItemVendorEntrySelector();
+  const itemHashToCollectableSelector = makeItemHashToCollectableSelector();
+  const itemPerksSelector = makeItemPerksSelector();
+  const itemPresentationSelector = makeItemPresentationSelector();
 
   return (state, ownProps) => {
     return {
-      profileObjectives: profileObjectivesSelector(state),
+      googleAuth: state.app.googleAuth,
+      objectiveInstances: objectiveInstancesSelector(state),
       objectiveDefs: objectiveDefsSelector(state),
       statDefs: statDefsSelector(state),
       stats: itemStatsSelector(state, ownProps),
       item: itemSelector(state, ownProps),
-      itemInventoryEntry: itemInventoryEntrySelector(state, ownProps)
+      itemInventoryEntry: itemInventoryEntrySelector(state, ownProps),
+      vendorEntry: itemVendorEntrySelector(state, ownProps),
+      collectionInventory: checklistInventorySelector(state),
+      collectible: itemHashToCollectableSelector(state, ownProps),
+      perks: itemPerksSelector(state, ownProps),
+      displayItem: itemPresentationSelector(state, ownProps)
     };
   };
 };
 
 const mapDispatchToActions = {
-  trackOrnament: trackOrnamentAction
+  trackOrnament: trackOrnamentAction,
+  toggleManuallyObtained: toggleManuallyObtainedAction,
+  forgetDismantled: forgetDismantledAction
 };
 
-export default connect(mapStateToProps, mapDispatchToActions)(ItemModalWrapper);
+export default connect(
+  mapStateToProps,
+  mapDispatchToActions
+)(ItemModalWrapper);

@@ -1,15 +1,15 @@
-//
-// Objectives
-//
 .objective
-  margin-bottom: 10px
   position: relative
-  background: lighten(#16191E, 2%)
+  z-index: 1
+  background: rgba(white, .04)
+  border: 1px solid rgba(white, .2)
   padding: 5px 8px
 
   .trackedStat &
     margin-bottom: 0
-    // background: lighten(#16191E, 2%)
+
+  & + &
+    margin-top: 5px
 
 .objectiveTrack
   position: absolute
@@ -19,7 +19,8 @@
   height: 100%
   width: 0
   z-index: 1
-  background: rgb(80, 82, 93)
+  background: rgba(white, .15)
+  transition: width 250ms ease-in-out
 
   .trackedStat &
     display: none
@@ -37,3 +38,11 @@
 
   & > :last-child
     font-weight: 600
+
+.completed
+  opacity: .8
+  font-size: .9em
+  font-style: italic
+  margin-bottom: $padding
+  line-height: 1
+  margin-top: 10px

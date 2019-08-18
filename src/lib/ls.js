@@ -11,11 +11,19 @@ const keys = {
   GOOGLE_LOGIN_TOOLTIP: '$hideGoogleLoginTooltip',
   VISIT_COUNT: '$visitCount',
   TRACKED_ITEMS: '$trackedItems',
+  TRACKED_RECORDS: '$trackedRecords',
   UID: 'uid',
   DEBUGID: 'debugid',
   PROFILE_ERROR_REPORTED: 'profileErrorReported',
+  REQUEST_CACHE: 'cache',
+  DATA_EXPLORER_VISITED: 'dataExplorerVisited',
+  TEMP_FILTER_ITEM_WHITELIST: 'filterItemWhitelist',
+  HIDDEN_ITEM_SETS: 'hiddenSets',
 
-  DESTINY_PROFILE: 'd2Profile'
+  DESTINY_PROFILE: 'd2Profile2',
+  DEBUG: 'debug',
+
+  _i18n: '_i18n' // used as a prefix
 };
 
 let LOCAL_STORAGE;
@@ -76,7 +84,33 @@ function get(key, defaultx) {
 
 function save(key, value) {
   const jason = JSON.stringify(value);
-  LOCAL_STORAGE.setItem(key, jason);
+
+  try {
+    LOCAL_STORAGE.setItem(key, jason);
+  } catch (err) {
+    console.error(
+      `Error writing ${key} to localStorage. Falling back to polyfill`
+    );
+    console.error(err);
+    LOCAL_STORAGE = localStoragePolyfill;
+    LOCAL_STORAGE.setItem(key, jason);
+  }
+}
+
+export function getI18nString(path) {
+  return get(`${keys._i18n}|${path}`);
+}
+
+export function saveI18nString(path, string) {
+  return save(`${keys._i18n}|${path}`, string);
+}
+
+export function getCachedUrl(url) {
+  return get(`${keys.REQUEST_CACHE}|${url}`);
+}
+
+export function saveCachedUrl(url, payload) {
+  return save(`${keys.REQUEST_CACHE}|${url}`, payload);
 }
 
 export function getProfileErrorReported() {
@@ -93,6 +127,14 @@ export function saveLanguage(langCode) {
 
 export function getLanguage() {
   return get(keys.LANGUAGE, getDefaultLanguage());
+}
+
+export function saveDataExplorerVisited(value) {
+  save(keys.DATA_EXPLORER_VISITED, value);
+}
+
+export function getDataExplorerVisited() {
+  return get(keys.DATA_EXPLORER_VISITED, false);
 }
 
 export function saveInventory(inventory) {
@@ -131,6 +173,22 @@ export function getFilters() {
   return get(keys.FILTERS);
 }
 
+export function getTempFilterItemWhitelist() {
+  return get(keys.TEMP_FILTER_ITEM_WHITELIST, []);
+}
+
+export function saveTempFilterItemWhitelist(items) {
+  const itemsToSave = items.reduce(
+    (acc, hash) => (acc.includes(hash) ? acc : [...acc, hash]),
+    getTempFilterItemWhitelist()
+  );
+  return save(keys.TEMP_FILTER_ITEM_WHITELIST, itemsToSave);
+}
+
+export function clearTempFilterItemWhitelist() {
+  return save(keys.TEMP_FILTER_ITEM_WHITELIST, []);
+}
+
 export function savePreviousAccount(id, type) {
   save(keys.ACCOUNT, { id, type });
 }
@@ -159,12 +217,12 @@ export function getVisitCount() {
   return parseInt(get(keys.VISIT_COUNT, 0), 10);
 }
 
-export function getGoogleDriveInventoryFileId() {
-  return get(keys.GDRIVE_FILE_ID, null);
+export function getGoogleDriveInventoryFileId(keySuffix) {
+  return get(keys.GDRIVE_FILE_ID + keySuffix, null);
 }
 
-export function saveGoogleDriveInventoryFileId(fileId) {
-  save(keys.GDRIVE_FILE_ID, fileId);
+export function saveGoogleDriveInventoryFileId(keySuffix, fileId) {
+  save(keys.GDRIVE_FILE_ID + keySuffix, fileId);
 }
 
 export function getTrackedItems() {
@@ -173,6 +231,14 @@ export function getTrackedItems() {
 
 export function saveTrackedItems(items) {
   save(keys.TRACKED_ITEMS, items);
+}
+
+export function getTrackedRecords() {
+  return get(keys.TRACKED_RECORDS, []);
+}
+
+export function saveTrackedRecords(items) {
+  save(keys.TRACKED_RECORDS, items);
 }
 
 export function getUID() {
@@ -208,10 +274,40 @@ export function removeProfiles() {
   return localStorage.removeItem(keys.DESTINY_PROFILE);
 }
 
+export function getHiddenItemSets() {
+  return get(keys.HIDDEN_ITEM_SETS, {});
+}
+
+export function saveHiddenItemSets(setId, hidden) {
+  let hiddenSets = getHiddenItemSets();
+  hiddenSets[setId] = hidden;
+  return save(keys.HIDDEN_ITEM_SETS, hiddenSets);
+}
+
+export function saveBulkHiddenItemSets(value) {
+  return save(keys.HIDDEN_ITEM_SETS, value);
+}
+
 export function clearAll() {
   Object.values(keys).forEach(k => {
     localStorage.removeItem(k);
   });
+}
+
+export function cleanUp() {
+  const whitelistedKeys = Object.values(keys);
+  try {
+    Object.keys(localStorage).forEach(lsKey => {
+      const isWhitelisted = whitelistedKeys.find(key => lsKey.includes(key));
+      if (!isWhitelisted) {
+        console.info('Pruning unwhitelisted key from localStorage', lsKey);
+        localStorage.removeItem(lsKey);
+      }
+    });
+  } catch (e) {
+    console.error('Error cleaning localStorage');
+    console.error(e);
+  }
 }
 
 export const localStorage = LOCAL_STORAGE;

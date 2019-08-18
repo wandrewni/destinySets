@@ -7,6 +7,7 @@ import {
   WEAPON,
   ARMOR,
   GHOST,
+  GHOST_PROJECTION,
   EMOTES,
   SHIP,
   SPARROW,
@@ -94,16 +95,18 @@ export default function sortItems(_items, verbose = false) {
   const _sectionItems = groupBy(items, item => {
     if (item.itemCategoryHashes.includes(ARMOR_MODS_ORNAMENTS)) {
       if (isCategory(item, ARMOR_MODS_ORNAMENTS_TITAN)) {
-        return TITAN;
+        return ARMOR_MODS_ORNAMENTS_TITAN;
       } else if (isCategory(item, ARMOR_MODS_ORNAMENTS_WARLOCK)) {
-        return WARLOCK;
+        return ARMOR_MODS_ORNAMENTS_WARLOCK;
       } else if (isCategory(item, ARMOR_MODS_ORNAMENTS_HUNTER)) {
-        return HUNTER;
+        return ARMOR_MODS_ORNAMENTS_HUNTER;
       }
     } else if (item.itemCategoryHashes.includes(WEAPON)) {
       return 'weapon';
     } else if (item.itemCategoryHashes.includes(GHOST)) {
       return 'ghosts';
+    } else if (item.itemCategoryHashes.includes(GHOST_PROJECTION)) {
+      return 'ghostProjections';
     } else if (item.itemCategoryHashes.includes(EMOTES)) {
       return 'emotes';
     } else if (item.itemCategoryHashes.includes(SHIP)) {
@@ -132,10 +135,23 @@ export default function sortItems(_items, verbose = false) {
   const sections = [
     { name: 'Weapons', items: sectionItems.weapon },
     { name: 'Hunter armor', items: sortArmor(sectionItems[HUNTER]) },
+    {
+      name: 'Hunter ornaments',
+      items: sortArmor(sectionItems[ARMOR_MODS_ORNAMENTS_HUNTER])
+    },
     { name: 'Titan armor', items: sortArmor(sectionItems[TITAN]) },
+    {
+      name: 'Titan ornaments',
+      items: sortArmor(sectionItems[ARMOR_MODS_ORNAMENTS_TITAN])
+    },
     { name: 'Warlock armor', items: sortArmor(sectionItems[WARLOCK]) },
+    {
+      name: 'Warlock ornaments',
+      items: sortArmor(sectionItems[ARMOR_MODS_ORNAMENTS_WARLOCK])
+    },
     { name: 'Emotes', items: sectionItems.emotes },
     { name: 'Ghosts', items: sectionItems.ghosts },
+    { name: 'Ghost Projections', items: sectionItems.ghostProjections },
     { name: 'Ships', items: sectionItems.ships },
     { name: 'Sparrows', items: sectionItems.sparrows },
     { name: 'Emblems', items: sectionItems.emblems },

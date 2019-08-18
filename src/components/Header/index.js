@@ -3,13 +3,21 @@ import React, { Component, Fragment } from 'react';
 import { Link } from 'react-router';
 import cx from 'classnames';
 
+import {
+  signIn as googleSignIn,
+  signOut as googleSignOut
+} from 'app/lib/googleDriveAuth';
+
 import logo from 'app/logo.svg';
+import xur from 'app/assets/xur_icon.png';
 import { DONATION_LINK } from 'app/components/DonateButton';
 import Icon from 'app/components/Icon';
-import GoogleAuthButton from 'app/components/GoogleAuthButton';
+import LoginCTA from '../LoginCTA';
 import DonateButton from 'app/components/DonateButton';
 import ProfileDropdown from './ProfileDropdown';
 import LanguageDropdown from './LanguageDropdown';
+
+import ClickOutside from 'react-click-outside';
 
 import styles from './styles.styl';
 
@@ -19,13 +27,11 @@ function isOverflowing(el) {
 
 const link = (name, to) => ({ name, to });
 const LINKS = [
-  link('Base', '/'),
-  link('All Seasons', '/all-seasons'),
-  link('Curse of Osiris', '/curse-of-osiris'),
-  link('Warmind', '/warmind'),
+  link('Forsaken', '/'),
+  link('Year 1', '/year-1'),
   link('Strikes', '/strike-gear'),
   link('All Items', '/all-items'),
-  link('Data Explorer', '/data')
+  link('Catalysts', '/catalysts')
 ];
 
 const SOCIALS = [
@@ -41,9 +47,15 @@ const SiteName = () => (
   </div>
 );
 
-const SiteLinks = () => (
+const SiteLinks = ({
+  displayXur,
+  openXurModal,
+  xurHasNewItems,
+  showDataExplorerLink
+}) => (
   <Fragment>
     <div className={styles.dummyLink} />
+
     {LINKS.map(({ name, to }) => (
       <Link
         key={to}
@@ -54,6 +66,27 @@ const SiteLinks = () => (
         {name}
       </Link>
     ))}
+
+    {showDataExplorerLink && (
+      <a
+        className={styles.link}
+        href="https://data.destinysets.com"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Data Explorer
+      </a>
+    )}
+
+    {displayXur && (
+      <a
+        onClick={() => openXurModal(true)}
+        className={cx(styles.xurLink, xurHasNewItems && styles.xurLinkNewItems)}
+      >
+        <img className={styles.xurIcon} src={xur} alt="" />
+        Xûr
+      </a>
+    )}
   </Fragment>
 );
 
@@ -73,15 +106,29 @@ const SocialLinks = () => (
   </Fragment>
 );
 
+function sidebarClickOutside(toggleSidebar, isOpen, ev) {
+  if (isOpen) {
+    ev.preventDefault();
+    toggleSidebar();
+  }
+}
+
 function Sidebar({
+  isAuth,
+  isOpen,
   language,
   setLanguage,
-  displayGoogleAuthButton,
-  googleSignIn,
-  toggleSidebar
+  toggleSidebar,
+  displayXur,
+  openXurModal,
+  xurHasNewItems,
+  showDataExplorerLink
 }) {
   return (
-    <div className={styles.sidebar}>
+    <ClickOutside
+      className={styles.sidebar}
+      onClickOutside={sidebarClickOutside.bind(null, toggleSidebar, isOpen)}
+    >
       <div className={styles.sidebarInner}>
         <div className={styles.sidebarTop}>
           <SiteName />
@@ -90,7 +137,12 @@ function Sidebar({
           </button>
         </div>
 
-        <SiteLinks />
+        <SiteLinks
+          displayXur={displayXur}
+          openXurModal={openXurModal}
+          xurHasNewItems={xurHasNewItems}
+          showDataExplorerLink={showDataExplorerLink}
+        />
 
         <div className={styles.hr} />
 
@@ -101,9 +153,8 @@ function Sidebar({
             setLanguage={setLanguage}
           />
         )}
-        <br />
 
-        {displayGoogleAuthButton && <GoogleAuthButton onClick={googleSignIn} />}
+        {!isAuth && <LoginCTA className={styles.sidebarLoginCta} />}
 
         <div className={styles.sidebarExtra}>
           <DonateButton />
@@ -113,7 +164,7 @@ function Sidebar({
           </div>
         </div>
       </div>
-    </div>
+    </ClickOutside>
   );
 }
 
@@ -152,17 +203,20 @@ export default class Header extends Component {
 
   render() {
     const {
-      isCached,
       currentProfile,
       allProfiles,
       switchProfile,
+      isAuth,
       language,
       setLanguage,
       logout,
-      googleAuthSignedIn,
-      displayGoogleAuthButton,
-      googleSignIn,
-      googleSignOut
+      googleAuth,
+      displayXur,
+      xurHasNewItems,
+      openXurModal,
+      profileCached,
+      profileLoading,
+      showDataExplorerLink
     } = this.props;
 
     const { isOverflowing, sidebarActive } = this.state;
@@ -175,7 +229,13 @@ export default class Header extends Component {
           sidebarActive && styles.sidebarActive
         )}
       >
-        <Sidebar {...this.props} toggleSidebar={this.toggleSidebar} />
+        {isOverflowing && (
+          <Sidebar
+            {...this.props}
+            isOpen={sidebarActive}
+            toggleSidebar={this.toggleSidebar}
+          />
+        )}
 
         <div className={styles.fixed}>
           {isOverflowing && (
@@ -190,13 +250,20 @@ export default class Header extends Component {
           <SiteName />
 
           <div className={styles.links} ref={this.setLinksRef}>
-            <SiteLinks />
+            <SiteLinks
+              displayXur={displayXur}
+              openXurModal={openXurModal}
+              xurHasNewItems={xurHasNewItems}
+              showDataExplorerLink={showDataExplorerLink}
+            />
           </div>
 
-          <div className={styles.etc}>
-            {displayGoogleAuthButton &&
-              !isOverflowing && <GoogleAuthButton onClick={googleSignIn} />}
+          {!isAuth &&
+            !isOverflowing && <LoginCTA className={styles.headerLoginCta} />}
 
+          <div className={styles.spacer} />
+
+          <div className={styles.etc}>
             {language &&
               !isOverflowing && (
                 <LanguageDropdown
@@ -207,13 +274,15 @@ export default class Header extends Component {
 
             {currentProfile && (
               <ProfileDropdown
-                isCached={isCached}
+                profileLoading={profileLoading}
+                profileCached={profileCached}
                 currentProfile={currentProfile}
                 allProfiles={allProfiles}
                 switchProfile={switchProfile}
                 logout={logout}
                 googleSignOut={googleSignOut}
-                googleAuthSignedIn={googleAuthSignedIn}
+                googleSignIn={googleSignIn}
+                googleAuthSignedIn={googleAuth.signedIn}
               />
             )}
 

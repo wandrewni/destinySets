@@ -1,0 +1,100 @@
+$green = #44bd32;
+$trackedGreen = #A9FF6A
+$borderWidth = 1px
+
+.root
+  // max-width: 25%
+  min-width: 290px
+  max-width: 25%
+  flex: 1 0 25%
+  margin: 0 !important
+  padding: 7px
+
+  // @media screen and (max-width: 910px)
+  //   width: 100%
+  //   max-width: initial
+  //   min-width: 100%
+
+  code
+    font-family: monospace
+
+  ul
+    padding-left: 30px
+
+  & + &
+    border-left: none
+
+  // &.completed
+  //   opacity: .5
+
+.inner
+  display: flex
+  flex-direction: column
+  position: relative
+  z-index: 1
+  background: #15191E
+  padding: 15px
+  height: 100%
+
+.tick
+  position: absolute
+  top: 8px
+  right: 8px
+  background: $green
+  width: 20px
+  height: 20px
+  font-size: 14px
+  line-height: 1
+  border-radius: 50px
+  display: flex
+  align-items: center
+  justify-content: center
+
+.screenshot
+  display: block
+  width: 100%
+  height: auto
+
+.objectives
+  margin-top: 15px;
+
+.masterworkComplete
+  display: inline-block
+  height: 2em
+  margin-right: .5ch
+  vertical-align: middle
+
+  & + span
+    vertical-align: baseline
+
+.plugIcon
+  height: 1.5em
+  width: auto
+  vertical-align: middle
+  dispaly: inline-block
+  margin-right: .75ch
+
+.itemLink
+  color: inherit
+  text-decoration: none
+
+.instance + .instance
+  border-top: 1px solid rgba(white, .05)
+
+.red
+  color: red
+
+.green
+  color: green
+
+
+.faded
+  opacity: .75em
+
+
+.completeMessage
+  display: flex
+  align-items: center
+  flex-grow: 1
+  justify-content: center
+  margin-bottom: 0

@@ -1,13 +1,35 @@
-import React from 'react';
+import React, { Fragment } from 'react';
+
+import { saveDataExplorerVisited } from 'app/lib/ls';
 
 import styles from './styles.styl';
 
 import DonateButton from 'app/components/DonateButton';
 
-export default function Footer({ item }) {
+const rememberDev = () => saveDataExplorerVisited(true);
+
+export default function Footer({ item, children }) {
   return (
     <div className={styles.footer}>
       <DonateButton />
+      {children && (
+        <Fragment>
+          <br />
+          {children}
+          <br />
+        </Fragment>
+      )}
+      <br />
+      Developer, or curious about the data behind Destiny? Check out the{' '}
+      <a
+        href="https://data.destinysets.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={rememberDev}
+      >
+        Destiny Data Explorer
+      </a>
+      <br />
       <br />
       Made with love by{' '}
       <a href="http://joshhunt.is" target="_blank" rel="noopener noreferrer">

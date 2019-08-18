@@ -1,23 +1,21 @@
 .root
   padding-bottom: 30px
+  margin-top: -15px
 
-// SUPER fragile way to make the scroll position of the first set nice
-.root:nth-child(3)
-  content: '.root:nth-child(3)'
-  margin-top: -14px
-
-  .title
-    opacity: 0
+.root ~ .root
+  margin-top: 0
 
 .title
   margin-top: 0
   margin-bottom: 0
   font-size: 22px
   font-weight: normal
-  height: 0
   overflow: visible
+
+.riseTitle
   position: relative
   top: -34px
+  height: 0
 
 .list
   display: flex

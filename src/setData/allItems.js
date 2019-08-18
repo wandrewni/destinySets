@@ -1,15 +1,21 @@
-module.exports = [
+// @flow
+
+import type { SetPage } from '../types';
+
+export default ([
   {
     name: 'Gear',
     sets: [
       {
         name: 'Exotics',
+        id: 'ALL_EXOTICS',
         big: true,
         query: 'is:exotic is:gear',
         sections: []
       },
       {
         name: 'Weapons',
+        id: 'ALL_WEAPONS',
         big: true,
         sections: [
           {
@@ -24,18 +30,22 @@ module.exports = [
             name: 'Power',
             query: 'is:legendary is:weapon is:power'
           },
-          {
-            name: 'Ghosts',
-            query: 'is:legendary is:ghost'
-          }
         ]
       },
       {
         name: 'Armor',
+        id: 'ALL_ARMOR',
         big: true,
         query: 'is:legendary is:armor',
         sections: []
-      }
+      },
+      {
+        name: 'Ghosts',
+        id: 'ALL_GHOSTS',
+        big: true,
+        query: 'is:ghostly',
+        sections: []
+      },
     ]
   },
 
@@ -44,6 +54,7 @@ module.exports = [
     sets: [
       {
         name: 'Emblems',
+        id: 'ALL_EMBLEMS',
         big: true,
         sections: [
           {
@@ -67,6 +78,7 @@ module.exports = [
 
       {
         name: 'Shaders',
+        id: 'ALL_SHADERS',
         big: true,
         sections: [
           {
@@ -86,6 +98,7 @@ module.exports = [
 
       {
         name: 'Emotes',
+        id: 'ALL_EMOTES',
         big: true,
         query: 'is:emote',
         sections: []
@@ -93,6 +106,7 @@ module.exports = [
 
       {
         name: 'Ornaments',
+        id: 'ALL_ORNAMENTS',
         big: true,
         query: 'is:ornament',
         sections: []
@@ -105,15 +119,17 @@ module.exports = [
     sets: [
       {
         name: 'Sparrows',
+        id: 'ALL_SPARROWS',
         query: 'is:sparrow',
         sections: []
       },
 
       {
         name: 'Ships',
+        id: 'ALL_SHIPS',
         query: 'is:ship',
         sections: []
       }
     ]
   }
-];
+]: SetPage);

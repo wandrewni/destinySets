@@ -1,19 +1,15 @@
 import React from 'react';
 
-import { authUrl } from 'app/lib/destinyAuth';
-
 import styles from './styles.styl';
+import LoginCTA from '../LoginCTA';
+import Dismissable from '../Dismissable';
 
-export default function LoginUpsell({ children }) {
+export default function LoginUpsell({ children, ...props }) {
   return (
-    <div className={styles.loginUpsell}>
-      <h2 className={styles.heading}>Login for the good stuff</h2>
+    <Dismissable {...props} className={styles.root}>
+      {children && <div className={styles.children}>{children}</div>}
 
-      {children && <p>{children}</p>}
-
-      <a className={styles.authLink} href={authUrl()}>
-        Connect Bungie.net
-      </a>
-    </div>
+      <LoginCTA />
+    </Dismissable>
   );
 }

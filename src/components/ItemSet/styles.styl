@@ -5,10 +5,19 @@ $padding = 10px;
   height: 100%
   padding-bottom: 5px // TODO: set this in a better way? On .section?
 
+  .noUi &
+    background: none
+
 .header
   position: relative
   background: #283039
   padding: $padding
+
+  .noUi &
+    background: none
+
+.hidden
+  opacity: .5
 
 .headerImage
   width: "calc(100% + (%s * 2))" % $padding
@@ -24,6 +33,41 @@ $padding = 10px;
   padding: $padding
   font-size: 18px
 
+.split
+  display: flex
+
+.splitMain
+  flex: 1
+
+
+.hiddenToggleText
+  font-size: 14px
+
+.hiddenToggle
+  background: none
+  padding: 5px
+  margin: -5px
+  border: none
+  outline: none !important
+  color: inherit
+  font-size: 15px
+  opacity: .25
+  transition: opacity 150ms ease-in-out
+  cursor: pointer
+
+  &:active
+    opacity: .3 !important
+
+@media (hover: hover)
+  .hiddenToggle
+    opacity: 0
+
+  .inner:hover .hiddenToggle
+    opacity: .5
+
+    &:hover
+      opacity: .75
+
 .seasonLabel
   font-size: .75em
   background: #2B3037
@@ -35,14 +79,21 @@ $padding = 10px;
 .itemListWrapper
   margin: 0 -5px -10px -10px
 
+  .noUi &
+    margin-left: 0
+    margin-right: 0
+
 .itemList
   display: inline-flex
   flex-wrap: wrap
   margin: 0 5px 5px 5px
 
+  .noUi &
+    margin: 0 -7px
+
 .item
-  margin: 0 5px
-  margin-bottom: 10px
+  margin-bottom: 10px !important
+  margin-top: 0 !important
 
 .title
 .desc
@@ -61,6 +112,9 @@ $padding = 10px;
 
 .section
   padding: 0 $padding
+
+  .noUi &
+    padding: 0
 
 .sectionName
   margin-top: 10px

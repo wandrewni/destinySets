@@ -1,5 +1,8 @@
 import React, { Component } from 'react';
+import cx from 'classnames';
 import { Link, scrollSpy } from 'react-scroll';
+
+import Search from 'app/components/Search';
 
 import FilterDropdown from './FilterDropdown';
 import styles from './styles.styl';
@@ -10,7 +13,13 @@ export default class SectionList extends Component {
   }
 
   render() {
-    const { setData, filters, toggleFilter } = this.props;
+    const {
+      setData,
+      filters,
+      setFilterItem,
+      searchValue,
+      onSearchChange
+    } = this.props;
 
     return (
       <div className={styles.root}>
@@ -31,8 +40,15 @@ export default class SectionList extends Component {
             ))}
           </ul>
 
-          <div className={styles.filter}>
-            <FilterDropdown filters={filters} toggleFilter={toggleFilter} />
+          <Search value={searchValue} onChange={onSearchChange} />
+
+          <div
+            className={cx(
+              styles.filter,
+              searchValue && searchValue.length > 2 && styles.disabled
+            )}
+          >
+            <FilterDropdown filters={filters} setFilterItem={setFilterItem} />
           </div>
         </div>
       </div>

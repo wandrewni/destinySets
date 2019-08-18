@@ -10,6 +10,8 @@ export const isOrnament = item =>
   item.plug.plugCategoryIdentifier &&
   item.plug.plugCategoryIdentifier.includes('skins');
 
+export const flagEnum = (state, value) => !!(state & value);
+
 function classFromString(str) {
   const results = str.match(/hunter|titan|warlock/);
   if (!results) {
@@ -29,6 +31,10 @@ function classFromString(str) {
 }
 
 export const getItemClass = item => {
+  if (!item) {
+    return NO_CLASS;
+  }
+
   if (CLASS_OVERRIDES.hasOwnProperty(item.hash)) {
     return CLASS_OVERRIDES[item.hash];
   }
@@ -36,7 +42,7 @@ export const getItemClass = item => {
   const stackUniqueLabel = getLower(item, 'inventory.stackUniqueLabel');
   const plugCategoryIdentifier = getLower(item, 'plug.plugCategoryIdentifier');
 
-  if (item.itemCategoryHashes.includes(EMBLEM) && stackUniqueLabel.length) {
+  if (hasCategoryHash(item, EMBLEM) && stackUniqueLabel.length) {
     return classFromString(stackUniqueLabel);
   }
 
@@ -47,3 +53,9 @@ export const getItemClass = item => {
 
   return item.classType;
 };
+
+export function hasCategoryHash(item, categoryHash) {
+  return (
+    item.itemCategoryHashes && item.itemCategoryHashes.includes(categoryHash)
+  );
+}

@@ -14,8 +14,17 @@ const VERSION_NEW = 'new';
 const VERSION_NEW_2 = 'new-2';
 const VERSION_NEW_3 = 'new-3';
 
-function getFileId({ profile }) {
-  const lsFileId = ls.getGoogleDriveInventoryFileId();
+function makeFileName(profile) {
+  const profileData = profile.data.userInfo;
+  const namePrefix = window.DESTINYSETS_ENV;
+  return `inventory-${namePrefix}-${profileData.membershipType}-${
+    profileData.membershipId
+  }.json`;
+}
+
+export function getFileId({ profile }) {
+  const fileName = makeFileName(profile);
+  const lsFileId = ls.getGoogleDriveInventoryFileId(fileName);
   const fileId = __fileId || lsFileId;
   if (fileId) {
     lsFileId
@@ -24,13 +33,6 @@ function getFileId({ profile }) {
 
     return Promise.resolve(fileId);
   }
-
-  const profileData = profile.data.userInfo;
-  const namePrefix =
-    localStorage.googleDriveInventoryNamePrefix || window.DESTINYSETS_ENV;
-  const fileName = `inventory-${namePrefix}-${profileData.membershipType}-${
-    profileData.membershipId
-  }.json`;
 
   fileIdLog('Inventory filename is ' + fileName);
 
@@ -68,43 +70,55 @@ function getFileId({ profile }) {
     })
     .then(_fileId => {
       __fileId = _fileId;
-      ls.saveGoogleDriveInventoryFileId(__fileId);
+      ls.saveGoogleDriveInventoryFileId(fileName, __fileId);
+
       return __fileId;
     });
 }
 
-export function listVersions() {
-  return gapi.client.drive.revisions
-    .list({ fileId: JSON.parse(localStorage.$googleDriveFileIddev) })
-    .then(({ result }) => {
-      return result.revisions;
-    });
+export function listVersions(profile) {
+  return ready
+    .then(() => getFileId(profile))
+    .then(fileId => gapi.client.drive.revisions.list({ fileId }))
+    .then(data => data.result.revisions);
 }
 
-export function getRevision(revisionId) {
-  return gapi.client.drive.revisions
-    .get({
-      alt: 'media',
-      fileId: JSON.parse(localStorage.$googleDriveFileIddev),
-      revisionId
-    })
-    .then(({ result }) => {
-      return result;
-    });
+export function listAppDataFiles() {
+  return ready
+    .then(() => gapi.client.drive.files.list({ spaces: 'appDataFolder' }))
+    .then(data => data.result.files);
 }
 
-export function setInventory(inventory, profile, raw = false) {
-  log('Setting cloud inventory', { inventory, profile });
+export function getRevision(revisionId, profile) {
+  return ready
+    .then(() => getFileId(profile))
+    .then(fileId =>
+      gapi.client.drive.revisions.get({
+        alt: 'media',
+        fileId,
+        revisionId
+      })
+    )
+    .then(({ result }) => result);
+}
+
+let queueLibPromise;
+let saveQueue;
+
+function saveInventoryWorker(job, cb) {
+  const { inventory, profile, raw } = job;
+
+  log('Saving cloud inventory', { inventory, profile });
   ls.saveCloudInventory(inventory);
 
   const payload = raw
     ? inventory
     : {
         version: VERSION_NEW_3,
-        inventory
+        ...inventory
       };
 
-  log('Payload to save is', { payload });
+  log('Saving payload', { payload });
 
   return ready
     .then(() => getFileId(profile))
@@ -123,10 +137,39 @@ export function setInventory(inventory, profile, raw = false) {
     })
     .then(resp => {
       log('Successfully saved to Google Drive', { resp });
+      cb();
     })
     .catch(err => {
       log('ERROR saving to Google Drive', err);
+      cb(err);
     });
+}
+
+export function saveInventory(_inventory, profile, raw = false) {
+  const inventory = {
+    ..._inventory,
+    inventory: pickBy(_inventory.inventory, inventoryEntry => {
+      if (inventoryEntry.manuallyObtained) {
+        return false;
+      } else {
+        return true;
+      }
+    })
+  };
+
+  if (!queueLibPromise) {
+    log('Requesting async/queue');
+    queueLibPromise = import('async/queue');
+  }
+
+  queueLibPromise.then(queueLib => {
+    if (!saveQueue) {
+      saveQueue = queueLib(saveInventoryWorker, 1);
+    }
+
+    log('Pushing into save queue');
+    saveQueue.push({ inventory, profile, raw });
+  });
 }
 
 function removeArmorOrnamentsMigration(inventory, itemDefs) {
@@ -148,7 +191,7 @@ function removeArmorOrnamentsMigration(inventory, itemDefs) {
 
 function normaliseInstancesData(inventory) {
   log('Running normaliseInstancesData', { inventory });
-  return mapValues(inventory, inventoryItem => {
+  const newInventory = mapValues(inventory, inventoryItem => {
     if (inventoryItem.instances && !isArray(inventoryItem.instances)) {
       return {
         ...inventoryItem,
@@ -158,19 +201,23 @@ function normaliseInstancesData(inventory) {
 
     return inventoryItem;
   });
+
+  return { inventory: newInventory };
 }
 
 const BLACKLISTED_LOCATIONS = ['profileKiosks', 'characterKiosks'];
-function removeKioskItemsMigration(inventory) {
+function removeKioskItemsMigration({ inventory }) {
   log('Running removeKioskItemsMigration', { inventory });
 
-  return pickBy(inventory, (value, key) => {
+  const newInventory = pickBy(inventory, (value, key) => {
     const filtered = value.instances.filter(instance => {
       return !BLACKLISTED_LOCATIONS.includes(instance.location);
     });
 
     return filtered.length > 0;
   });
+
+  return { inventory: newInventory };
 }
 
 export function getInventory(profile, itemDefs) {
@@ -192,7 +239,7 @@ export function getInventory(profile, itemDefs) {
       log('Data is', data);
 
       if (data.version === VERSION_NEW_3) {
-        return data.inventory;
+        return data;
       }
 
       if (data.version === VERSION_NEW_2) {

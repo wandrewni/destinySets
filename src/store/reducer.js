@@ -1,102 +1,135 @@
-import { isObject, isArray, isNumber } from 'lodash';
-
 import {
   HUNTER,
   TITAN,
   WARLOCK,
   FILTER_SHOW_COLLECTED,
-  FILTER_SHOW_PS4_EXCLUSIVES
+  FILTER_SHOW_PS4_EXCLUSIVES,
+  FILTER_SHOW_HIDDEN_SETS,
+  FILTER_SHOW_ORNAMENTS,
+  FILTER_SHOW_WEAPONS
 } from 'app/lib/destinyEnums';
 
-const SET_PROFILES = 'Set profiles';
+import { makePayloadAction } from './utils';
+
 const SET_CLOUD_INVENTORY = 'Set cloud inventory';
-const SET_DEFINITIONS = 'Set definitions';
-const TOGGLE_FILTER_KEY = 'Toggle filter value';
+const SET_FILTER_ITEM = 'Set filter item';
+const SET_HIDDEN_ITEM_SET = 'Set hidden itemSet';
+const SET_BULK_HIDDEN_ITEM_SET = 'Set bulk hidden itemSet';
 const SET_BULK_FILTERS = 'Set bulk filters';
 const SET_LANGUAGE = 'Set language';
 const ADD_TRACK_ITEMS = 'Add tracked item';
 const REMOVE_TRACKED_ITEM = 'Remove tracked item';
 
+const ADD_TRACKED_RECORDS = 'Add tracked records';
+const REMOVE_TRACKED_RECORD = 'Remove tracked record';
+
+const TOGGLE_MANUALLY_OBTAINED = 'Toggle manually obtained';
+const SET_GOOGLE_AUTH = 'Set Google auth data';
+const FORGET_DISMANTLED_ITEM = 'Forget dismantled item';
+const SET_APP_VALUE = 'Set app value';
+const SET_SEARCH_VALUE = 'Set search value';
+
 export const DEFAULT_FILTER = {
   [TITAN]: true,
   [HUNTER]: true,
   [WARLOCK]: true,
+  [FILTER_SHOW_ORNAMENTS]: true,
+  [FILTER_SHOW_WEAPONS]: true,
   [FILTER_SHOW_COLLECTED]: true,
-  [FILTER_SHOW_PS4_EXCLUSIVES]: true
+  [FILTER_SHOW_PS4_EXCLUSIVES]: true,
+  [FILTER_SHOW_HIDDEN_SETS]: false
 };
 
 const INITIAL_STORE = {
   filters: DEFAULT_FILTER,
-  trackedItems: []
+  trackedItems: [],
+  trackedRecords: [],
+  manualInventory: {},
+  dataExplorerVisited: false,
+  googleAuth: {
+    loaded: false,
+    signedIn: false
+  }
 };
 
-const ITEM_DEF_KEYS = [];
-window.__ITEM_DEF_KEYS = ITEM_DEF_KEYS;
-const DEBUG_PROXIFY_ITEM_DEFS = false;
+function toggleManualInventory(manualInventory, itemHash) {
+  const newItem = manualInventory[itemHash]
+    ? null
+    : {
+        itemHash: itemHash,
+        instances: [{ location: 'destinySetsManual' }],
+        manuallyObtained: true
+      };
 
-function proxyifyDefs(defs, prevKeys = []) {
-  if (!DEBUG_PROXIFY_ITEM_DEFS) {
-    return defs;
+  const ddd = {
+    ...manualInventory,
+    [itemHash]: newItem
+  };
+
+  if (!ddd[itemHash]) {
+    delete ddd[itemHash];
   }
 
-  const p = new Proxy(defs, {
-    get: (obj, prop) => {
-      const keys = [...prevKeys, prop];
-      const keysOfInterest = keys.slice(1).join('.');
+  return ddd;
+}
 
-      if (!ITEM_DEF_KEYS.includes(keysOfInterest)) {
-        ITEM_DEF_KEYS.push(keysOfInterest);
-        console.log('Item defs', ITEM_DEF_KEYS);
-      }
+function forgetDismantledDoWork(cloudInventory, itemHash) {
+  const newCloudInventory = { ...cloudInventory };
+  delete newCloudInventory[itemHash];
 
-      const value = obj[prop];
-
-      if (isArray(value)) {
-        return value;
-      } else if (isObject(value)) {
-        const stuff = Object.keys(value).filter(k => !isNumber(k));
-        if (stuff.length) {
-          return proxyifyDefs(value, keys);
-        }
-
-        return value;
-      }
-
-      return value;
-    }
-  });
-
-  return p;
+  return newCloudInventory;
 }
 
 export default function reducer(state = INITIAL_STORE, action) {
   switch (action.type) {
-    case SET_PROFILES:
+    case SET_APP_VALUE:
       return {
         ...state,
         ...action.payload
       };
 
+    case SET_SEARCH_VALUE: {
+      return {
+        ...state,
+        searchValue: action.payload
+      };
+    }
+
+    case SET_GOOGLE_AUTH:
+      return {
+        ...state,
+        googleAuth: action.data
+      };
+
     case SET_CLOUD_INVENTORY:
       return {
         ...state,
-        cloudInventory: action.cloudInventory
+        cloudInventory: (action.cloudInventory || {}).inventory,
+        manualInventory: (action.cloudInventory || {}).manualInventory || {}
       };
 
-    case SET_DEFINITIONS:
-      return {
-        ...state,
-        [action.name]:
-          action.name === 'itemDefs' ? proxyifyDefs(action.defs) : action.defs
-      };
-
-    case TOGGLE_FILTER_KEY:
+    case SET_FILTER_ITEM:
       return {
         ...state,
         filters: {
           ...state.filters,
-          [action.filterKey]: !state.filters[action.filterKey]
+          [action.filterKey]: action.filterValue
         }
+      };
+
+    case SET_HIDDEN_ITEM_SET:
+      return {
+        ...state,
+        hiddenSets: {
+          ...state.hiddenSets,
+          [action.setId]: action.hiddenValue
+        }
+      };
+
+    case SET_BULK_HIDDEN_ITEM_SET:
+      return {
+        ...state,
+        hiddenSets: action.hiddenSets
       };
 
     case SET_BULK_FILTERS:
@@ -123,37 +156,65 @@ export default function reducer(state = INITIAL_STORE, action) {
         trackedItems: state.trackedItems.filter(h => h !== action.itemHash)
       };
 
+    case ADD_TRACKED_RECORDS:
+      return {
+        ...state,
+        trackedRecords: [...state.trackedRecords, ...action.recordHashes]
+      };
+
+    case REMOVE_TRACKED_RECORD:
+      return {
+        ...state,
+        trackedRecords: state.trackedRecords.filter(
+          h => h !== action.recordHash
+        )
+      };
+
+    case TOGGLE_MANUALLY_OBTAINED:
+      return {
+        ...state,
+        manualInventory: toggleManualInventory(
+          state.manualInventory,
+          action.itemHash
+        )
+      };
+
+    case FORGET_DISMANTLED_ITEM:
+      return {
+        ...state,
+        cloudInventory: forgetDismantledDoWork(
+          state.cloudInventory,
+          action.itemHash
+        )
+      };
+
     default:
       return state;
   }
 }
 
-export function setProfiles({ currentProfile, allProfiles, isCached }) {
-  return {
-    type: SET_PROFILES,
-    payload: {
-      profile: currentProfile,
-      allProfiles,
-      isCached
-    }
-  };
+export function setAppValue(payload) {
+  return { type: SET_APP_VALUE, payload };
 }
 
-export function switchProfile(newProfile) {
-  return {
-    type: SET_PROFILES,
-    payload: {
-      profile: newProfile
-    }
-  };
+export function setGoogleAuth(data) {
+  return { type: SET_GOOGLE_AUTH, data };
 }
 
 export function setCloudInventory(cloudInventory) {
   return { type: SET_CLOUD_INVENTORY, cloudInventory };
 }
 
-export function toggleFilterKey(filterKey) {
-  return { type: TOGGLE_FILTER_KEY, filterKey };
+export function setFilterItem(filterKey, filterValue) {
+  return { type: SET_FILTER_ITEM, filterKey, filterValue };
+}
+
+export function setHiddenItemSet(setId, hiddenValue) {
+  return { type: SET_HIDDEN_ITEM_SET, setId, hiddenValue };
+}
+
+export function setBulkHiddenItemSet(hiddenSets) {
+  return { type: SET_BULK_HIDDEN_ITEM_SET, hiddenSets };
 }
 
 export function setBulkFilters(filters) {
@@ -165,8 +226,11 @@ export function setLanguage(language) {
 }
 
 export function trackOrnaments(itemHashes) {
-  console.log('tracking itemHashes', itemHashes);
   return { type: ADD_TRACK_ITEMS, itemHashes };
+}
+
+export function trackRecords(recordHashes) {
+  return { type: ADD_TRACKED_RECORDS, recordHashes };
 }
 
 export function trackOrnament(itemHash) {
@@ -177,11 +241,16 @@ export function removeTrackedItem(itemHash) {
   return { type: REMOVE_TRACKED_ITEM, itemHash };
 }
 
-function setDefs(name, defs) {
-  return { type: SET_DEFINITIONS, name, defs };
+export function removeTrackedRecord(recordHash) {
+  return { type: REMOVE_TRACKED_RECORD, recordHash };
 }
 
-export const setVendorDefs = setDefs.bind(null, 'vendorDefs');
-export const setItemDefs = setDefs.bind(null, 'itemDefs');
-export const setObjectiveDefs = setDefs.bind(null, 'objectiveDefs');
-export const setStatDefs = setDefs.bind(null, 'statDefs');
+export function toggleManuallyObtained(itemHash) {
+  return { type: TOGGLE_MANUALLY_OBTAINED, itemHash };
+}
+
+export function forgetDismantled(itemHash) {
+  return { type: FORGET_DISMANTLED_ITEM, itemHash };
+}
+
+export const setSearchValue = makePayloadAction(SET_SEARCH_VALUE);

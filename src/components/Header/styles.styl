@@ -2,6 +2,7 @@ $baseColour = rgba(11, 13, 16, 1.0)
 $bgColour = lighten($baseColour, 4%)
 $filterColour = lighten($baseColour, 10%)
 $activeBg = rgba(white, .07)
+$xurColor = #536751
 $padding = 15px
 $height = 52px
 
@@ -33,20 +34,19 @@ $height = 52px
   margin-right: 12px
 
 .links
-  flex: 1
   margin-left: $padding
   height: $height
   overflow: hidden
   display: flex
   flex-wrap: wrap
 
+.spacer
+  flex: 1
+
 .link
 .dummyLink
   display: inline-block
   padding: 18px 10px
-
-  @media screen and (max-width: 500px)
-    display: none
 
 .dummyLink
   padding-left: 0
@@ -56,6 +56,7 @@ $height = 52px
   color: inherit
   text-decoration: none
   white-space: nowrap
+  transition: 150ms ease-in-out background
 
   &:hover
     background: $activeBg
@@ -73,10 +74,32 @@ $height = 52px
       height: 3px
       background: rgba(white, .2)
 
+.xurLink
+  composes: link
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  padding-right: 14px
+  cursor: pointer
+
+.xurLinkNewItems
+  background: $xurColor
+
+  &:hover
+    background: lighten($xurColor, 7%)
+
+.xurIcon
+  height: 25px
+  margin-right: 5px
+
 .etc
   margin: 0 -8px
   display: flex
   align-items: center
+
+.headerLoginCta
+  margin-left: 16px
+  padding: 10px 32px;
 
 .socialLink
   display: inline-block
@@ -106,7 +129,7 @@ $height = 52px
 
 .sidebar
   position: fixed
-  z-index: 4
+  z-index: 1000
   top: 0
   bottom: 0
   width: 100%
@@ -149,6 +172,10 @@ $height = 52px
   .socialLink
     display: inline-block !important
 
+  .sidebarLoginCta
+    margin: 12px auto 8px;
+    display: block;
+
   .link
     display: block !important // override media query
     width: 100%
@@ -162,6 +189,10 @@ $height = 52px
       height: initial
       top: 0
       width: 3px
+
+  .xurLink
+    display: flex !important
+    justify-content: flex-start
 
 .sidebarInner
   height: 100%
@@ -181,3 +212,11 @@ $height = 52px
 
 .sidebarExtra
   text-align: center
+
+
+.xurLink
+.link
+.dummyLink
+.xurLinkNewItems
+  @media screen and (max-width: 500px)
+    display: none

@@ -1,34 +1,24 @@
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
+import { Link } from 'react-router';
 
 import {
-  setProfiles,
-  switchProfile,
-  setCloudInventory,
-  setVendorDefs,
-  setItemDefs,
-  setLanguage,
-  setObjectiveDefs,
-  setStatDefs,
-  toggleFilterKey,
-  removeTrackedItem
+  setBulkDefinitions,
+  definitionsStatus,
+  definitionsError
+} from 'app/store/definitions';
+
+import {
+  setFilterItem,
+  removeTrackedItem,
+  setBulkHiddenItemSet,
+  setSearchValue
 } from 'app/store/reducer';
-import { inventorySelector } from 'app/store/selectors';
+import { fetchProfile } from 'app/store/profile';
 
-import googleAuth, {
-  signIn as googleSignIn,
-  signOut as googleSignOut
-} from 'app/lib/googleDriveAuth';
-import DestinyAuthProvider from 'app/lib/DestinyAuthProvider';
 import * as ls from 'app/lib/ls';
-import * as destiny from 'app/lib/destiny';
-import * as cloudStorage from 'app/lib/cloudStorage';
-import { getDefinition } from 'app/lib/manifestData';
-import { getDebugProfile } from 'app/lib/telemetry';
 
-import Header from 'app/components/Header';
 import Footer from 'app/components/Footer';
-import LoginUpsell from 'app/components/LoginUpsell';
 import Section from 'app/components/Section';
 import Popper from 'app/components/Popper';
 import ItemTooltip from 'app/components/ItemTooltip';
@@ -38,13 +28,7 @@ import SectionList from 'app/components/SectionList';
 import { filteredSetDataSelector } from './selectors';
 import styles from './styles.styl';
 
-const log = require('app/lib/log')('<Inventory />');
-
 const FETCH_INTERVAL = 30 * 1000;
-
-// eslint-disable-next-line
-const timeout = dur => result =>
-  new Promise(resolve => setTimeout(() => resolve(result), dur));
 
 class Inventory extends Component {
   state = {
@@ -53,301 +37,139 @@ class Inventory extends Component {
     unexpectedError: false
   };
 
-  componentDidMount() {
-    this.fetchDefinitions(this.props.language);
-    this.potentiallyScheduleFetchProfile();
-  }
+  componentDidUpdate(oldProps) {
+    const { filters, trackedItems } = this.props;
 
-  componentWillUnmount() {
-    window.clearInterval(this.intervalId);
-    this.intervalId = null;
-  }
-
-  componentWillReceiveProps(newProps) {
-    const { isAuthenticated, authLoaded } = newProps;
-
-    const authChanged =
-      isAuthenticated !== this.props.isAuthenticated ||
-      authLoaded !== this.props.authLoaded;
-
-    if (authChanged) {
-      log('Auth has changed', { isAuthenticated, authLoaded });
-      if (!isAuthenticated && authLoaded) {
-        ls.removeAuth();
-      }
-
-      if (isAuthenticated && authLoaded) {
-        if (!this.alreadyFetched) {
-          this.alreadyFetched = true;
-          this.fetch(newProps);
-        }
-      }
-
-      if (!isAuthenticated && authLoaded) {
-        ls.clearAll();
-        this.props.setProfiles({
-          currentProfile: null,
-          allProfiles: null,
-          isCached: false
-        });
-      }
+    if (filters !== oldProps.filters) {
+      ls.saveFilters(filters);
     }
 
-    if (this.props.filters !== newProps.filters) {
-      ls.saveFilters(newProps.filters);
-    }
-
-    if (this.props.language !== newProps.language) {
-      this.fetchDefinitions(newProps.language);
-    }
-
-    if (this.props.trackedItems !== newProps.trackedItems) {
-      this.potentiallyScheduleFetchProfile(newProps);
-    }
-
-    const inventoryHasChanged =
-      this.props.isCached !== newProps.isCached ||
-      this.props.haveCloudInventory !== newProps.haveCloudInventory;
-
-    if (inventoryHasChanged) {
-      log('Inventory has changed, in some way!', newProps);
-    }
-
-    if (
-      inventoryHasChanged &&
-      !newProps.isCached &&
-      newProps.haveCloudInventory &&
-      newProps.inventory
-    ) {
-      log(
-        'Have final inventory, apparently. Saving new cloudInventory',
-        newProps
-      );
-      cloudStorage.setInventory(newProps.inventory, newProps.profile);
+    if (trackedItems !== oldProps.trackedItems) {
+      this.potentiallyScheduleFetchProfile(this.props);
     }
   }
 
   potentiallyScheduleFetchProfile = (props = this.props) => {
-    if (!this.intervalId && props.trackedItems.length > 0) {
+    if (this.intervalId) {
+      return;
+    }
+
+    if (props.route.refreshOnInterval || props.trackedItems.length > 0) {
       this.intervalId = window.setInterval(() => {
-        this.fetchProfile();
+        console.log('calling props.fetchProfile()');
+        props.fetchProfile();
       }, FETCH_INTERVAL);
     }
   };
 
-  fetchProfile(props = this.props) {
-    const { debugProfile } = props.location.query;
-
-    if (debugProfile) {
-      const debugPath = debugProfile.includes('console.firebase.google.com')
-        ? debugProfile.split('destinysets-new/data/')[1]
-        : debugProfile;
-
-      log('Debug path', debugPath);
-
-      return getDebugProfile(debugPath).then(data => {
-        log('debug profile data', data);
-        props.setProfiles({
-          currentProfile: data,
-          allProfiles: [data],
-          isCached: false
-        });
-      });
-    }
-
-    return destiny
-      .getCurrentProfiles()
-      .then(data => {
-        log('got current profile', data);
-        const profile = destiny.getLastProfile(data);
-
-        props.setProfiles({
-          currentProfile: profile,
-          allProfiles: data.profiles,
-          isCached: false
-        });
-
-        return profile;
-      })
-      .catch(err => {
-        console.error('Error fetching current profiles');
-        console.error(err);
-
-        if (err.data && err.data.ErrorCode === 1618) {
-          this.setState({ unexpectedError: true });
-        }
-      });
-  }
-
-  fetch = (props = this.props) => {
-    this.fetchProfile(props).then(profile => {
-      googleAuth(({ signedIn }) => {
-        this.setState({
-          googleAuthLoaded: true,
-          googleAuthSignedIn: signedIn
-        });
-
-        this.itemDefsPromise.then(itemDefs => {
-          signedIn &&
-            cloudStorage
-              .getInventory(profile, itemDefs)
-              .then(props.setCloudInventory);
-        });
-      });
-    });
-  };
-
-  fetchDefinitions({ code: lang }) {
-    const {
-      setVendorDefs,
-      setStatDefs,
-      setItemDefs,
-      setObjectiveDefs
-    } = this.props;
-
-    getDefinition('DestinyVendorDefinition', lang).then(setVendorDefs);
-    getDefinition('DestinyStatDefinition', lang).then(setStatDefs);
-    getDefinition('DestinyObjectiveDefinition', lang).then(setObjectiveDefs);
-
-    this.itemDefsPromise = getDefinition(
-      'reducedCollectableInventoryItems',
-      lang,
-      false
-    );
-    this.itemDefsPromise.then(setItemDefs);
-  }
-
   setPopper = (itemHash, element) =>
     this.setState({ itemTooltip: itemHash ? { itemHash, element } : null });
 
-  setModal = itemHash => this.setState({ itemModal: itemHash });
-  toggleFilter = key => this.props.toggleFilterKey(key);
+  setItemModal = itemHash => this.setState({ itemModal: itemHash });
   removeTrackedItem = item => this.props.removeTrackedItem(item.hash);
 
-  switchProfile = profile => {
-    const { membershipId, membershipType } = profile.profile.data.userInfo;
-    ls.savePreviousAccount(membershipId, membershipType);
-    this.props.switchProfile(profile);
+  setFilterItem = (...args) => {
+    ls.clearTempFilterItemWhitelist();
+    this.props.setFilterItem(...args);
   };
 
-  logout = () => {
-    ls.clearAll();
-    this.props.setProfiles({
-      currentProfile: null,
-      allProfiles: null,
-      isCached: false
-    });
-    this.props.setCloudInventory(null);
+  unhideAllSets = () => {
+    ls.saveBulkHiddenItemSets({});
+    this.props.setBulkHiddenItemSet({});
   };
 
-  googleSignOut = () => {
-    googleSignOut();
-    this.props.setCloudInventory(null);
-  };
-
-  setLanguage = language => {
-    ls.saveLanguage(language);
-    this.props.setLanguage(language);
+  onSearchChange = ev => {
+    this.props.setSearchValue(ev.target.value);
   };
 
   render() {
     const {
       filters,
       filteredSetData,
-      profile,
-      allProfiles,
-      language,
-      isCached,
-      isAuthenticated,
-      trackedItems
+      trackedItems,
+      route,
+      searchValue
     } = this.props;
+    const { itemTooltip, itemModal } = this.state;
+    const noUi = (filteredSetData[0] || {}).noUi;
 
-    const {
-      itemTooltip,
-      itemModal,
-      googleAuthLoaded,
-      googleAuthSignedIn,
-      unexpectedError
-    } = this.state;
+    const numberOfHiddenSets = Object.values(this.props.hiddenSets).reduce(
+      (acc, value) => {
+        return value ? acc + 1 : acc;
+      },
+      0
+    );
 
     return (
       <div className={styles.root}>
-        <Header
-          isCached={isCached}
-          currentProfile={profile}
-          allProfiles={allProfiles}
-          switchProfile={this.switchProfile}
-          language={language}
-          setLanguage={this.setLanguage}
-          logout={this.logout}
-          googleSignIn={googleSignIn}
-          googleSignOut={this.googleSignOut}
-          googleAuthSignedIn={googleAuthSignedIn}
-          displayGoogleAuthButton={
-            googleAuthLoaded && isAuthenticated && !googleAuthSignedIn
-          }
-        />
-
-        <SectionList
-          setData={filteredSetData}
-          filters={filters}
-          toggleFilter={this.toggleFilter}
-        />
-
-        {!isAuthenticated && (
-          <LoginUpsell>
-            Connect your Bungie.net acccount to automatically track items you've
-            collected and dismantled.
-          </LoginUpsell>
+        {!noUi && (
+          <SectionList
+            setData={filteredSetData}
+            filters={filters}
+            setFilterItem={this.setFilterItem}
+            searchValue={searchValue}
+            onSearchChange={this.onSearchChange}
+          />
         )}
 
-        {unexpectedError && (
-          <div className={styles.errorInfo}>
-            An unexpected error occurred while requesting your profile. This is
-            a known issue with Bungie's API and until resolved, players may
-            workaround the issue by signing into all characters, on all
-            platforms.{' '}
-            <a
-              target="_blank"
-              rel="noopener noreferrer"
-              href="https://twitter.com/BungieHelp/status/994643009214955521"
-            >
-              Read more from @BungieHelp
-            </a>.
+        {route.isCollections && (
+          <div className={styles.promo}>
+            <p>
+              This was an experimental preview of the items that will be marked
+              off in Collections when Forsaken dropped, and may be retired soon
+              by Bungie in an upcomming update.
+            </p>
+            <p>
+              Official Collections support is now built into DestinySets.com.
+            </p>
           </div>
         )}
 
-        {this.props.route.showWarmindBanner && (
-          <div className={styles.info}>
-            Warmind and Season 3 sets are still a work in progress. To
-            contibute, check out{' '}
-            <a
-              target="_blank"
-              rel="noopener noreferrer"
-              href="https://github.com/joshhunt/destinySets"
-            >
-              Github
-            </a>, or send them directly on{' '}
-            <a
-              target="_blank"
-              rel="noopener noreferrer"
-              href="https://twitter.com/joshhunt"
-            >
-              Twitter
-            </a>.
-          </div>
-        )}
+        <div className={styles.solsticePromo}>
+          <div className={styles.solsticePromoContent}>
+            <h1>Solstice of Heroes 2019</h1>
 
-        {filteredSetData.map(({ sets, slug, name }, index) => (
+            <p>
+              Solstice of Heroes is live now for all players of Destiny 2 until
+              August 27.
+            </p>
+
+            <p>
+              Use Destiny Sets to persue limited-time Solstice-themed armor sets
+              and track your progress through unlocking and masterworking all
+              your Solstice of Heroes 2019 gear.
+            </p>
+
+            <Link className={styles.solsticeCta} to="/solstice-2019">
+              Track your Solstice gear now
+            </Link>
+          </div>
+        </div>
+
+        {filteredSetData.map(({ sets, noUi, slug, name }, index) => (
           <Section
             key={index}
             name={name}
+            noUi={noUi}
             sets={sets}
             slug={slug}
             setPopper={this.setPopper}
-            setModal={this.setModal}
+            setModal={this.setItemModal}
+            extendedItems={searchValue && searchValue.length > 2}
           />
         ))}
+
+        {numberOfHiddenSets > 0 && (
+          <p className={styles.hiddenSets}>
+            {numberOfHiddenSets} sets hidden.{' '}
+            <button
+              className={styles.unhideSetsButton}
+              onClick={this.unhideAllSets}
+            >
+              Unhide all
+            </button>
+          </p>
+        )}
 
         <Footer />
 
@@ -360,12 +182,17 @@ class Inventory extends Component {
         {trackedItems.length > 0 && (
           <div className={styles.trackedItems}>
             {trackedItems.map(hash => (
-              <ItemTooltip
+              <div
                 key={hash}
-                itemHash={hash}
-                small={true}
-                dismiss={this.removeTrackedItem}
-              />
+                className={styles.trackedItem}
+                data-global-hack-tracked-item
+              >
+                <ItemTooltip
+                  itemHash={hash}
+                  small={true}
+                  dismiss={this.removeTrackedItem}
+                />
+              </div>
             ))}
           </div>
         )}
@@ -373,7 +200,7 @@ class Inventory extends Component {
         <ItemModal
           itemHash={itemModal}
           isOpen={!!itemModal}
-          onRequestClose={() => this.setModal(null)}
+          onRequestClose={() => this.setItemModal(null)}
         />
       </div>
     );
@@ -382,33 +209,27 @@ class Inventory extends Component {
 
 const mapStateToProps = (state, ownProps) => {
   return {
+    hiddenSets: state.app.hiddenSets,
     filters: state.app.filters,
-    profile: state.app.profile,
-    isCached: state.app.isCached,
-    allProfiles: state.app.allProfiles,
-    language: state.app.language,
-    itemDefs: state.app.itemDefs,
     trackedItems: state.app.trackedItems,
-    // TODO: this uses props, so we need to 'make' a selector like in ItemSet
+    vendors: state.profile.profile && state.profile.profile.$vendors,
     filteredSetData: filteredSetDataSelector(state, ownProps),
-    inventory: inventorySelector(state),
-    haveCloudInventory: !!state.app.cloudInventory
+    searchValue: state.app.searchValue
   };
 };
 
 const mapDispatchToActions = {
-  setProfiles,
-  switchProfile,
-  setCloudInventory,
-  setVendorDefs,
-  setItemDefs,
-  setObjectiveDefs,
-  setStatDefs,
-  toggleFilterKey,
-  setLanguage,
-  removeTrackedItem
+  fetchProfile,
+  setFilterItem,
+  removeTrackedItem,
+  setBulkHiddenItemSet,
+  setBulkDefinitions,
+  definitionsStatus,
+  definitionsError,
+  setSearchValue
 };
 
-export default DestinyAuthProvider(
-  connect(mapStateToProps, mapDispatchToActions)(Inventory)
-);
+export default connect(
+  mapStateToProps,
+  mapDispatchToActions
+)(Inventory);
